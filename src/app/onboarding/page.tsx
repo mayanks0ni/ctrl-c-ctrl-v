@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRouter } from "next/navigation";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { motion } from "framer-motion";
 import { Check, Loader2, BookOpen, GraduationCap, Calculator, Globe, Code, Microscope } from "lucide-react";
@@ -31,6 +31,23 @@ export default function OnboardingPage() {
     const [selectedSubjects, setSelectedSubjects] = useState<SelectedSubject[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [progressStatus, setProgressStatus] = useState("");
+
+    // Load existing subjects if editing
+    useEffect(() => {
+        if (user) {
+            getDoc(doc(db, "users", user.uid)).then(docSnap => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.subjects) {
+                        const normalized = data.subjects.map((s: any) =>
+                            typeof s === "string" ? { name: s, difficulty: "beginner" } : s
+                        );
+                        setSelectedSubjects(normalized);
+                    }
+                }
+            });
+        }
+    }, [user]);
 
     if (loading || !user) {
         return (
@@ -153,8 +170,8 @@ export default function OnboardingPage() {
                                             key={level}
                                             onClick={() => setDifficulty(subject.name, level)}
                                             className={`p-3 rounded-xl border text-sm font-medium capitalize transition-all duration-200 ${subject.difficulty === level
-                                                    ? "bg-purple-500/20 border-purple-500 text-purple-300"
-                                                    : "bg-black/40 border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                                                ? "bg-purple-500/20 border-purple-500 text-purple-300"
+                                                : "bg-black/40 border-zinc-700 text-zinc-400 hover:bg-zinc-800"
                                                 }`}
                                         >
                                             {level}
@@ -178,7 +195,9 @@ export default function OnboardingPage() {
                                 {progressStatus || "Personalizing..."}
                             </>
                         ) : (
-                            step === 1 ? "Next: Set Difficulty" : "Generate My Feed"
+                            step === 1
+                                ? "Next: Set Difficulty"
+                                : (selectedSubjects.length > 0 && progressStatus === "" ? "Save & Generate Feed" : "Personalize My Feed")
                         )}
                     </button>
 

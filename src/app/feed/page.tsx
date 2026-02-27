@@ -2,7 +2,7 @@
 
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import FeedScroller from "@/components/feed/FeedScroller";
-import { Loader2, User, Plus, LayoutGrid } from "lucide-react";
+import { Loader2, User, Plus, LayoutGrid, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
@@ -50,9 +50,12 @@ export default function FeedPage() {
             <div className="absolute top-0 w-full z-50 pt-12 pb-4 px-6 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
                 <div className="flex justify-between items-center pointer-events-auto max-w-lg mx-auto">
                     {/* Profile & Upload */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
                         <Link href="/profile" className="w-10 h-10 bg-zinc-800/80 rounded-full flex items-center justify-center border border-zinc-700 backdrop-blur-md text-white hover:bg-zinc-700 transition">
                             <User className="w-5 h-5" />
+                        </Link>
+                        <Link href="/forum" className="w-10 h-10 bg-zinc-800/80 rounded-full flex items-center justify-center border border-zinc-700 backdrop-blur-md text-white hover:bg-zinc-700 transition">
+                            <Users className="w-5 h-5" />
                         </Link>
                     </div>
 

@@ -34,7 +34,10 @@ export default function ForumPage() {
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
                     if (userData.subjects?.length > 0) {
-                        setSubjects(["General", ...userData.subjects]);
+                        const subjectNames = userData.subjects.map((s: any) =>
+                            typeof s === "string" ? s : s.name
+                        );
+                        setSubjects(["General", ...subjectNames]);
                     }
                     if (userData.displayName) setUserName(userData.displayName);
                 }
@@ -117,8 +120,8 @@ export default function ForumPage() {
                             key={subj}
                             onClick={() => setActiveSubject(subj)}
                             className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${activeSubject === subj
-                                    ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
-                                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
+                                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                                : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
                                 }`}
                         >
                             {subj}

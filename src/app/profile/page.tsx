@@ -14,7 +14,7 @@ interface UserStats {
     xp: number;
     streak: number;
     displayName: string;
-    subjects: string[];
+    subjects: { name: string; difficulty: string }[];
 }
 
 export default function ProfilePage() {
@@ -28,7 +28,12 @@ export default function ProfilePage() {
             const fetchProfile = async () => {
                 const docSnap = await getDoc(doc(db, "users", user.uid));
                 if (docSnap.exists()) {
-                    setStats(docSnap.data() as UserStats);
+                    const data = docSnap.data();
+                    // Normalize subjects in case they are still strings
+                    const normalizedSubjects = (data.subjects || []).map((s: any) =>
+                        typeof s === "string" ? { name: s, difficulty: "beginner" } : s
+                    );
+                    setStats({ ...data, subjects: normalizedSubjects } as UserStats);
                 }
 
                 const docsRef = collection(db, `users/${user.uid}/documents`);
@@ -129,12 +134,18 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Subjects */}
-                <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Your Subjects</h3>
+                <div className="flex justify-between items-center mb-4 px-2">
+                    <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Your Subjects</h3>
+                    <Link href="/onboarding" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Edit Subjects</Link>
+                </div>
                 <div className="flex flex-wrap gap-2 mb-8 px-2">
                     {stats.subjects.map(sub => (
-                        <span key={sub} className="bg-zinc-800 border border-zinc-700 px-4 py-2 rounded-xl text-sm font-medium">
-                            {sub}
-                        </span>
+                        <div key={sub.name} className="bg-zinc-900/50 border border-zinc-800 px-4 py-2.5 rounded-xl flex items-center gap-3">
+                            <span className="text-sm font-bold text-zinc-100">{sub.name}</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-500 border border-zinc-700">
+                                {sub.difficulty}
+                            </span>
+                        </div>
                     ))}
                 </div>
 
