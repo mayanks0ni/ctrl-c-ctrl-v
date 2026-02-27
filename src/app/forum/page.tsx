@@ -37,12 +37,14 @@ export default function ForumPage() {
     const [activeSubject, setActiveSubject] = useState<string>("General");
     const [subjects, setSubjects] = useState<string[]>(["General"]);
     const [posts, setPosts] = useState<Post[]>([]);
-    const [activeThread, setActiveThread] = useState<Post | null>(null);
+    const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
     const [replies, setReplies] = useState<Reply[]>([]);
     const [newPost, setNewPost] = useState("");
     const [newReply, setNewReply] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [userName, setUserName] = useState("Learner");
+
+    const activeThread = posts.find(p => p.id === activeThreadId) || null;
 
     // Fetch User Subjects
     useEffect(() => {
@@ -84,13 +86,13 @@ export default function ForumPage() {
 
     // Listen to Replies for Active Thread
     useEffect(() => {
-        if (!activeThread) {
+        if (!activeThreadId) {
             setReplies([]);
             return;
         }
 
         const q = query(
-            collection(db, `forumPosts/${activeThread.id}/replies`),
+            collection(db, `forumPosts/${activeThreadId}/replies`),
             orderBy("createdAt", "asc")
         );
 
@@ -103,7 +105,7 @@ export default function ForumPage() {
         });
 
         return () => unsubscribe();
-    }, [activeThread]);
+    }, [activeThreadId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -132,11 +134,11 @@ export default function ForumPage() {
 
     const handleReplySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newReply.trim() || !user || !activeThread) return;
+        if (!newReply.trim() || !user || !activeThreadId) return;
 
         setIsSubmitting(true);
         try {
-            const repliesRef = collection(db, `forumPosts/${activeThread.id}/replies`);
+            const repliesRef = collection(db, `forumPosts/${activeThreadId}/replies`);
             await addDoc(repliesRef, {
                 text: newReply.trim(),
                 userId: user.uid,
@@ -145,7 +147,7 @@ export default function ForumPage() {
             });
 
             // Update reply count on original post
-            const postRef = doc(db, "forumPosts", activeThread.id);
+            const postRef = doc(db, "forumPosts", activeThreadId);
             await updateDoc(postRef, {
                 replyCount: increment(1)
             });
@@ -161,10 +163,10 @@ export default function ForumPage() {
     const handleVote = async (postId: string, type: 'up' | 'down') => {
         if (!user) return;
         const postRef = doc(db, "forumPosts", postId);
-        const post = posts.find(p => p.id === postId) || (activeThread?.id === postId ? activeThread : null);
+        const post = posts.find(p => p.id === postId);
         if (!post) return;
 
-        const votedBy = post.votedBy || {};
+        const votedBy = { ...(post.votedBy || {}) };
         const currentVote = votedBy[user.uid];
 
         let upvoteChange = 0;
@@ -194,11 +196,15 @@ export default function ForumPage() {
             votedBy[user.uid] = type;
         }
 
-        await updateDoc(postRef, {
-            upvotes: increment(upvoteChange),
-            downvotes: increment(downvoteChange),
-            votedBy: votedBy
-        });
+        try {
+            await updateDoc(postRef, {
+                upvotes: increment(upvoteChange),
+                downvotes: increment(downvoteChange),
+                votedBy: votedBy
+            });
+        } catch (error) {
+            console.error("Error voting:", error);
+        }
     };
 
     if (loading || !user) {
@@ -218,19 +224,19 @@ export default function ForumPage() {
             <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-zinc-800 p-4">
                 <div className="max-w-3xl mx-auto flex items-center gap-4">
                     <button
-                        onClick={() => activeThread ? setActiveThread(null) : router.push("/feed")}
+                        onClick={() => activeThreadId ? setActiveThreadId(null) : router.push("/feed")}
                         className="w-10 h-10 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center text-white hover:bg-zinc-800 transition shrink-0"
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div className="flex-1">
                         <h1 className="text-xl font-bold flex items-center gap-2">
-                            <Users className="w-5 h-5 text-blue-400" /> {activeThread ? "Discussion" : "Community"}
+                            <Users className="w-5 h-5 text-blue-400" /> {activeThreadId ? "Discussion" : "Community"}
                         </h1>
                     </div>
                 </div>
 
-                {!activeThread && (
+                {!activeThreadId && (
                     <div className="max-w-3xl mx-auto mt-4 overflow-x-auto no-scrollbar flex gap-2 pb-2">
                         {subjects.map(subj => (
                             <button
@@ -251,7 +257,7 @@ export default function ForumPage() {
             {/* Main Content */}
             <div className="flex-1 max-w-3xl w-full mx-auto p-4 pb-32 space-y-4 overflow-y-auto">
                 <AnimatePresence mode="wait">
-                    {!activeThread ? (
+                    {!activeThreadId ? (
                         <motion.div
                             key="feed"
                             initial={{ opacity: 0 }}
@@ -301,7 +307,7 @@ export default function ForumPage() {
                                                 </div>
 
                                                 <button
-                                                    onClick={() => setActiveThread(post)}
+                                                    onClick={() => setActiveThreadId(post.id)}
                                                     className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition text-sm font-medium"
                                                 >
                                                     <MessageCircle className="w-5 h-5" />
@@ -313,7 +319,7 @@ export default function ForumPage() {
                                 })
                             )}
                         </motion.div>
-                    ) : (
+                    ) : activeThread ? (
                         <motion.div
                             key="thread"
                             initial={{ opacity: 0, x: 20 }}
@@ -358,27 +364,31 @@ export default function ForumPage() {
                             {/* Replies List */}
                             <div className="space-y-4 pl-4 border-l-2 border-zinc-800">
                                 <h4 className="text-zinc-500 text-sm font-bold uppercase tracking-widest pl-2">Replies</h4>
-                                {replies.map(reply => (
-                                    <div key={reply.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-4">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-[10px]">
-                                                {reply.userName.charAt(0).toUpperCase()}
+                                {replies.length === 0 ? (
+                                    <p className="text-zinc-600 text-sm pl-2">No replies yet.</p>
+                                ) : (
+                                    replies.map(reply => (
+                                        <div key={reply.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-[10px]">
+                                                    {reply.userName.charAt(0).toUpperCase()}
+                                                </div>
+                                                <p className="font-bold text-zinc-300 text-xs">{reply.userName}</p>
                                             </div>
-                                            <p className="font-bold text-zinc-300 text-xs">{reply.userName}</p>
+                                            <p className="text-zinc-400 text-sm leading-relaxed">{reply.text}</p>
                                         </div>
-                                        <p className="text-zinc-400 text-sm leading-relaxed">{reply.text}</p>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                         </motion.div>
-                    )}
+                    ) : null}
                 </AnimatePresence>
             </div>
 
             {/* Input Area */}
             <div className="fixed bottom-0 w-full bg-black/80 backdrop-blur-xl border-t border-zinc-800 p-4 z-40">
                 <div className="max-w-3xl mx-auto">
-                    {!activeThread ? (
+                    {!activeThreadId ? (
                         <form onSubmit={handleSubmit} className="flex gap-2">
                             <input
                                 type="text"
@@ -402,7 +412,7 @@ export default function ForumPage() {
                                 type="text"
                                 value={newReply}
                                 onChange={(e) => setNewReply(e.target.value)}
-                                placeholder={`Reply to ${activeThread.userName}...`}
+                                placeholder={activeThread ? `Reply to ${activeThread.userName}...` : "Loading..."}
                                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-6 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                             />
                             <button
