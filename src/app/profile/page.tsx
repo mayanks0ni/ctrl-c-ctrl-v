@@ -139,14 +139,19 @@ export default function ProfilePage() {
                     <Link href="/onboarding" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Edit Subjects</Link>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-8 px-2">
-                    {stats.subjects.map(sub => (
-                        <div key={sub.name} className="bg-zinc-900/50 border border-zinc-800 px-4 py-2.5 rounded-xl flex items-center gap-3">
-                            <span className="text-sm font-bold text-zinc-100">{sub.name}</span>
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-500 border border-zinc-700">
-                                {sub.difficulty}
-                            </span>
-                        </div>
-                    ))}
+                    {stats.subjects.map((sub: any) => {
+                        const subjectName = typeof sub === 'string' ? sub : sub.name;
+                        return (
+                            <div key={subjectName} className="bg-zinc-900/50 border border-zinc-800 px-4 py-2.5 rounded-xl flex items-center gap-3">
+                                <span className="text-sm font-bold text-zinc-100">{subjectName}</span>
+                                {typeof sub === 'object' && sub.difficulty && (
+                                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-500 border border-zinc-700">
+                                        {sub.difficulty}
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Recent Documents */}
