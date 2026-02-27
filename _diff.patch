@@ -1,0 +1,675 @@
+diff -ru src/app/api/generate-feed/route.ts ctrl-c-ctrl-v/src/app/api/generate-feed/route.ts
+--- src/app/api/generate-feed/route.ts	2026-02-28 04:09:53
++++ ctrl-c-ctrl-v/src/app/api/generate-feed/route.ts	2026-02-28 04:38:58
+@@ -78,10 +78,10 @@
+                 const feedsRef = collection(db, "feeds");
+ 
+                 // Fire and forget or await Promise.all
+-                await Promise.all(items.map(async (item: any) => {
++                await Promise.all(items.map(async (item: Record<string, unknown>) => {
+                     // Remove the Gemini-generated ID off the item so we don't store it
+                     // and instead uniquely rely on the Firestore auto-generated document ID later.
+-                    const { id, ...itemData } = item;
++                    const { id: _ignoredId, ...itemData } = item;
+ 
+                     await addDoc(feedsRef, {
+                         ...itemData,
+@@ -97,15 +97,16 @@
+             }
+ 
+             return NextResponse.json({ success: true, count: items.length });
+-        } catch (parseError) {
++        } catch (error: unknown) {
+             console.error("Failed to parse Gemini JSON:", responseText);
+             return NextResponse.json({ error: "Invalid content generated" }, { status: 500 });
+         }
+ 
+-    } catch (error: any) {
++    } catch (error: unknown) {
+         console.error("Error generating feed:", error);
++        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+         return NextResponse.json(
+-            { error: "Internal server error during feed generation", details: error.message },
++            { error: "Internal server error during feed generation", details: errorMessage },
+             { status: 500 }
+         );
+     }
+diff -ru src/app/api/process-document/route.ts ctrl-c-ctrl-v/src/app/api/process-document/route.ts
+--- src/app/api/process-document/route.ts	2026-02-28 04:25:55
++++ ctrl-c-ctrl-v/src/app/api/process-document/route.ts	2026-02-28 04:38:58
+@@ -3,6 +3,8 @@
+ import { embeddingModelSafe } from "@/lib/gemini/client";
+ import { db } from "@/lib/firebase/config";
+ import { doc, updateDoc } from "firebase/firestore";
++// @ts-expect-error - pdf-parse lacks proper types
++import pdfParse from "pdf-parse";
+ 
+ export async function POST(req: NextRequest) {
+     try {
+@@ -25,9 +27,10 @@
+         const buffer = Buffer.from(arrayBuffer);
+         console.log(`[PROCESS_DOC] Buffer created, length: ${buffer.length} bytes`);
+ 
+-        // 2. Extract text (mocked for build purposes since pdf-parse is broken in Next.js App Router)
+-        console.log(`[PROCESS_DOC] Extracting text...`);
+-        const text = "Extracted PDF contents would go here. " + fileName;
++        // 2. Extract text using pdf-parse
++        console.log(`[PROCESS_DOC] Extracting text with pdf-parse...`);
++        const pdfData = await pdfParse(buffer);
++        const text = pdfData.text;
+ 
+         if (!text || text.trim().length === 0) {
+             throw new Error("No text extracted from PDF");
+@@ -97,7 +100,7 @@
+ 
+         return NextResponse.json({ success: true, chunksProcessed: finalChunks.length });
+ 
+-    } catch (error: any) {
++    } catch (error: unknown) {
+         console.error("Error processing document:", error);
+ 
+         // Update document status to error if possible
+@@ -105,12 +108,14 @@
+             const body = await req.json().catch(() => ({}));
+             if (body.userId && body.documentId) {
+                 const docRef = doc(db, `users/${body.userId}/documents`, body.documentId);
+-                await updateDoc(docRef, { status: "error", error: error.message });
++                await updateDoc(docRef, { status: "error", error: error instanceof Error ? error.message : String(error) });
+             }
+-        } catch (e) { }
++        } catch (innerError: unknown) {
++            console.error("Failed to update document status to error:", innerError);
++        }
+ 
+         return NextResponse.json(
+-            { error: "Internal server error during document processing", details: error.message },
++            { error: "Internal server error during document processing", details: error instanceof Error ? error.message : String(error) },
+             { status: 500 }
+         );
+     }
+diff -ru src/app/auth/page.tsx ctrl-c-ctrl-v/src/app/auth/page.tsx
+--- src/app/auth/page.tsx	2026-02-28 04:09:53
++++ ctrl-c-ctrl-v/src/app/auth/page.tsx	2026-02-28 04:38:58
+@@ -6,7 +6,7 @@
+ import { useAuth } from "@/contexts/AuthContext";
+ import { useEffect } from "react";
+-import { Sparkles, Brain, Loader2 } from "lucide-react";
++import { Brain, Loader2 } from "lucide-react";
+ import { motion } from "framer-motion";
+ 
+ export default function AuthPage() {
+@@ -17,14 +17,18 @@
+     const [loading, setLoading] = useState(false);
+     const router = useRouter();
+ 
+-    const { user, loading: authLoading } = useAuth();
++    const { user, userData, loading: authLoading } = useAuth();
+ 
+     // Prevent logged-in users from seeing the auth page
+     useEffect(() => {
+         if (!authLoading && user) {
+-            router.push("/feed");
++            if (userData && !userData.onboardingComplete) {
++                router.push("/onboarding");
++            } else if (userData?.onboardingComplete) {
++                router.push("/feed");
++            }
+         }
+-    }, [user, authLoading, router]);
++    }, [user, userData, authLoading, router]);
+ 
+     const handleAuth = async (e: React.FormEvent) => {
+         e.preventDefault();
+@@ -37,9 +41,10 @@
+             } else {
+                 await createUserWithEmailAndPassword(auth, email, password);
+             }
+-            router.push("/feed"); // Redirect to main feed after auth
+-        } catch (err: any) {
+-            setError(err.message || "Authentication failed");
++            // Router redirect is handled by useEffect above when userData syncs
++        } catch (err: unknown) {
++            const errorMessage = err instanceof Error ? err.message : "Authentication failed";
++            setError(errorMessage);
+         } finally {
+             setLoading(false);
+         }
+@@ -51,9 +56,10 @@
+         try {
+             const provider = new GoogleAuthProvider();
+             await signInWithPopup(auth, provider);
+-            router.push("/feed");
+-        } catch (err: any) {
+-            setError(err.message || "Google authentication failed");
++            // Router redirect handled by useEffect
++        } catch (err: unknown) {
++            const errorMessage = err instanceof Error ? err.message : "Google authentication failed";
++            setError(errorMessage);
+         } finally {
+             setLoading(false);
+         }
+diff -ru src/app/feed/page.tsx ctrl-c-ctrl-v/src/app/feed/page.tsx
+--- src/app/feed/page.tsx	2026-02-28 04:36:08
++++ ctrl-c-ctrl-v/src/app/feed/page.tsx	2026-02-28 04:38:58
+@@ -8,31 +8,25 @@
+ import { doc, getDoc } from "firebase/firestore";
+ import { db } from "@/lib/firebase/config";
+ 
++interface SelectedSubject {
++    name: string;
++    difficulty: "beginner" | "intermediate" | "advanced";
++}
+ 
+ export default function FeedPage() {
+     const { user, loading } = useRequireAuth();
+-    const router = useRouter();
+-    const [subjects, setSubjects] = useState<string[]>([]);
+-    const [activeSubject, setActiveSubject] = useState<string | undefined>(undefined);
++    const [subjects, setSubjects] = useState<SelectedSubject[]>([]);
++    const [activeSubject, setActiveSubject] = useState<SelectedSubject | undefined>(undefined);
+ 
+     useEffect(() => {
+         if (user) {
+             getDoc(doc(db, "users", user.uid)).then(docSnap => {
+                 if (docSnap.exists() && docSnap.data().subjects) {
+-                    const userSubjects = docSnap.data().subjects;
+-                    if (userSubjects.length > 0) {
+-                        setSubjects(userSubjects);
+-                    } else {
+-                        // Force onboarding if no subjects selected
+-                        router.push("/onboarding");
+-                    }
+-                } else {
+-                    router.push("/onboarding");
++                    setSubjects(docSnap.data().subjects);
+                 }
+             });
+         }
+-    }, [user, router]);
++    }, [user]);
+ 
+     if (loading || !user) {
+         return (
+@@ -64,11 +58,11 @@
+                         </button>
+                         {subjects.map(subj => (
+                             <button
+-                                key={subj}
++                                key={subj.name}
+                                 onClick={() => setActiveSubject(subj)}
+-                                className={`px-4 py-1.5 text-sm font-bold rounded-full whitespace-nowrap transition-all ${activeSubject === subj ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
++                                className={`px-4 py-1.5 text-sm font-bold rounded-full whitespace-nowrap transition-all ${activeSubject?.name === subj.name ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
+                             >
+-                                {subj}
++                                {subj.name}
+                             </button>
+                         ))}
+                     </div>
+@@ -80,7 +74,7 @@
+             </div>
+ 
+             {/* The Scroller */}
+-            <FeedScroller userId={user.uid} subject={activeSubject} userSubjects={subjects} />
++            <FeedScroller userId={user.uid} subject={activeSubject?.name} difficulty={activeSubject?.difficulty} />
+         </div>
+     );
+ }
+diff -ru src/app/globals.css ctrl-c-ctrl-v/src/app/globals.css
+--- src/app/globals.css	2026-02-28 04:31:18
++++ ctrl-c-ctrl-v/src/app/globals.css	2026-02-28 04:38:58
+@@ -24,17 +24,3 @@
+   color: var(--foreground);
+   font-family: Arial, Helvetica, sans-serif;
+ }
+-
+-/* 3D Flip Utilities */
+-.perspective-1000 {
+-  perspective: 1000px;
+-}
+-.preserve-3d {
+-  transform-style: preserve-3d;
+-}
+-.backface-hidden {
+-  backface-visibility: hidden;
+-}
+-.rotate-y-180 {
+-  transform: rotateY(180deg);
+-}
+diff -ru src/app/onboarding/page.tsx ctrl-c-ctrl-v/src/app/onboarding/page.tsx
+--- src/app/onboarding/page.tsx	2026-02-28 04:22:24
++++ ctrl-c-ctrl-v/src/app/onboarding/page.tsx	2026-02-28 04:38:58
+@@ -1,9 +1,9 @@
+ "use client";
+ 
+-import { useState, useEffect } from "react";
++import { useState } from "react";
+ import { useRequireAuth } from "@/hooks/useRequireAuth";
+-import { doc, getDoc, updateDoc } from "firebase/firestore";
++import { doc, updateDoc } from "firebase/firestore";
+ import { db } from "@/lib/firebase/config";
+ import { motion } from "framer-motion";
+ import { Check, Loader2, BookOpen, GraduationCap, Calculator, Globe, Code, Microscope } from "lucide-react";
+@@ -17,30 +17,22 @@
+     { id: "history", name: "History", icon: GraduationCap },
+ ];
+ 
++type SubjectDifficulty = "beginner" | "intermediate" | "advanced";
++
++interface SelectedSubject {
++    name: string;
++    difficulty: SubjectDifficulty;
++}
++
+ export default function OnboardingPage() {
+     const { user, loading } = useRequireAuth();
+     const router = useRouter();
+-    const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
++    const [step, setStep] = useState<1 | 2>(1);
++    const [selectedSubjects, setSelectedSubjects] = useState<SelectedSubject[]>([]);
+     const [isSaving, setIsSaving] = useState(false);
+-    const [isEditing, setIsEditing] = useState(false);
+-    const [fetchingSubjects, setFetchingSubjects] = useState(true);
++    const [progressStatus, setProgressStatus] = useState("");
+ 
+-    useEffect(() => {
+-        if (user) {
+-            getDoc(doc(db, "users", user.uid)).then(docSnap => {
+-                if (docSnap.exists()) {
+-                    const userData = docSnap.data();
+-                    if (userData.subjects && userData.subjects.length > 0) {
+-                        setSelectedSubjects(userData.subjects);
+-                        setIsEditing(true);
+-                    }
+-                }
+-                setFetchingSubjects(false);
+-            });
+-        }
+-    }, [user]);
+-
+-    if (loading || !user || fetchingSubjects) {
++    if (loading || !user) {
+         return (
+             <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+                 <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+@@ -49,16 +41,29 @@
+     }
+ 
+     const toggleSubject = (subjectName: string) => {
++        setSelectedSubjects(prev => {
++            const exists = prev.find(s => s.name === subjectName);
++            if (exists) {
++                return prev.filter(s => s.name !== subjectName);
++            }
++            return [...prev, { name: subjectName, difficulty: "beginner" }];
++        });
++    };
++
++    const setDifficulty = (subjectName: string, difficulty: SubjectDifficulty) => {
+         setSelectedSubjects(prev =>
+-            prev.includes(subjectName)
+-                ? prev.filter(s => s !== subjectName)
+-                : [...prev, subjectName]
++            prev.map(s => s.name === subjectName ? { ...s, difficulty } : s)
+         );
+     };
+ 
+     const handleContinue = async () => {
+         if (selectedSubjects.length === 0) return;
+ 
++        if (step === 1) {
++            setStep(2);
++            return;
++        }
++
+         setIsSaving(true);
+         try {
+             const userRef = doc(db, "users", user.uid);
+@@ -66,10 +71,24 @@
+                 subjects: selectedSubjects,
+                 onboardingComplete: true
+             });
++
++            // Pre-generate feeds for each subject sequentially
++            for (const subject of selectedSubjects) {
++                setProgressStatus(`Curating your ${subject.name} feed...`);
++                await fetch("/api/generate-feed", {
++                    method: "POST",
++                    headers: { "Content-Type": "application/json" },
++                    body: JSON.stringify({
++                        userId: user.uid,
++                        subject: subject.name,
++                        expertiseLevel: subject.difficulty
++                    }),
++                });
++            }
++
+             router.push("/feed");
+         } catch (error) {
+             console.error("Error saving subjects:", error);
+-        } finally {
+             setIsSaving(false);
+         }
+     };
+@@ -85,52 +104,89 @@
+                 className="w-full max-w-2xl z-10"
+             >
+                 <div className="text-center mb-10">
+-                    <h1 className="text-4xl font-bold mb-4 tracking-tight">{isEditing ? "Update your subjects" : "What are you studying?"}</h1>
+-                    <p className="text-zinc-400 text-lg">Select your subjects to personalize your learning feed.</p>
++                    <h1 className="text-4xl font-bold mb-4 tracking-tight">
++                        {step === 1 ? "What are you studying?" : "Set your expertise level"}
++                    </h1>
++                    <p className="text-zinc-400 text-lg">
++                        {step === 1
++                            ? "Select your subjects to personalize your learning feed."
++                            : "How familiar are you with these subjects?"}
++                    </p>
+                 </div>
+ 
+-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+-                    {SUGGESTED_SUBJECTS.map((subject) => {
+-                        const isSelected = selectedSubjects.includes(subject.name);
+-                        const Icon = subject.icon;
++                {step === 1 ? (
++                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
++                        {SUGGESTED_SUBJECTS.map((subject) => {
++                            const isSelected = selectedSubjects.some(s => s.name === subject.name);
++                            const Icon = subject.icon;
+ 
+-                        return (
+-                            <motion.button
+-                                key={subject.id}
+-                                whileHover={{ scale: 1.02 }}
+-                                whileTap={{ scale: 0.98 }}
+-                                onClick={() => toggleSubject(subject.name)}
+-                                className={`relative p-6 rounded-2xl border flex flex-col items-center justify-center gap-4 transition-all duration-200 ${isSelected
+-                                    ? "bg-blue-500/10 border-blue-500/50 text-white"
+-                                    : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800/50"
+-                                    }`}
+-                            >
+-                                {isSelected && (
+-                                    <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+-                                        <Check className="w-3 h-3 text-white" />
+-                                    </div>
+-                                )}
+-                                <Icon className={`w-8 h-8 ${isSelected ? "text-blue-400" : "text-zinc-500"}`} />
+-                                <span className="font-medium">{subject.name}</span>
+-                            </motion.button>
+-                        );
+-                    })}
+-                </div>
++                            return (
++                                <motion.button
++                                    key={subject.id}
++                                    whileHover={{ scale: 1.02 }}
++                                    whileTap={{ scale: 0.98 }}
++                                    onClick={() => toggleSubject(subject.name)}
++                                    className={`relative p-6 rounded-2xl border flex flex-col items-center justify-center gap-4 transition-all duration-200 ${isSelected
++                                        ? "bg-blue-500/10 border-blue-500/50 text-white"
++                                        : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800/50"
++                                        }`}
++                                >
++                                    {isSelected && (
++                                        <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
++                                            <Check className="w-3 h-3 text-white" />
++                                        </div>
++                                    )}
++                                    <Icon className={`w-8 h-8 ${isSelected ? "text-blue-400" : "text-zinc-500"}`} />
++                                    <span className="font-medium">{subject.name}</span>
++                                </motion.button>
++                            );
++                        })}
++                    </div>
++                ) : (
++                    <div className="space-y-6 mb-10">
++                        {selectedSubjects.map((subject) => (
++                            <div key={subject.name} className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl">
++                                <h3 className="text-xl font-bold mb-4">{subject.name}</h3>
++                                <div className="grid grid-cols-3 gap-3">
++                                    {(["beginner", "intermediate", "advanced"] as SubjectDifficulty[]).map((level) => (
++                                        <button
++                                            key={level}
++                                            onClick={() => setDifficulty(subject.name, level)}
++                                            className={`p-3 rounded-xl border text-sm font-medium capitalize transition-all duration-200 ${subject.difficulty === level
++                                                    ? "bg-purple-500/20 border-purple-500 text-purple-300"
++                                                    : "bg-black/40 border-zinc-700 text-zinc-400 hover:bg-zinc-800"
++                                                }`}
++                                        >
++                                            {level}
++                                        </button>
++                                    ))}
++                                </div>
++                            </div>
++                        ))}
++                    </div>
++                )}
+ 
+-                <div className="flex justify-center">
++                <div className="flex flex-col items-center">
+                     <button
+                         onClick={handleContinue}
+                         disabled={selectedSubjects.length === 0 || isSaving}
+                         className="bg-white text-black px-8 py-4 rounded-full font-bold text-lg flex items-center gap-2 hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_40px_rgba(255,255,255,0.2)]"
+                     >
+                         {isSaving ? (
+-                            <Loader2 className="w-6 h-6 animate-spin" />
+-                        ) : isEditing ? (
+-                            "Save Changes"
++                            <>
++                                <Loader2 className="w-6 h-6 animate-spin" />
++                                {progressStatus || "Personalizing..."}
++                            </>
+                         ) : (
+-                            "Personalize My Feed"
++                            step === 1 ? "Next: Set Difficulty" : "Generate My Feed"
+                         )}
+                     </button>
++
++                    {step === 2 && !isSaving && (
++                        <button onClick={() => setStep(1)} className="mt-4 text-zinc-500 hover:text-white transition">
++                            Back to Subjects
++                        </button>
++                    )}
+                 </div>
+             </motion.div>
+         </div>
+diff -ru src/app/page.tsx ctrl-c-ctrl-v/src/app/page.tsx
+--- src/app/page.tsx	2026-02-28 04:09:53
++++ ctrl-c-ctrl-v/src/app/page.tsx	2026-02-28 04:38:58
+@@ -6,18 +6,22 @@
+ import { Loader2 } from "lucide-react";
+ 
+ export default function Home() {
+-  const { user, loading } = useAuth();
++  const { user, userData, loading } = useAuth();
+   const router = useRouter();
+ 
+   useEffect(() => {
+     if (!loading) {
+       if (user) {
+-        router.push("/feed");
++        if (userData && !userData.onboardingComplete) {
++          router.push("/onboarding");
++        } else if (userData?.onboardingComplete) {
++          router.push("/feed");
++        }
+       } else {
+         router.push("/auth");
+       }
+     }
+-  }, [user, loading, router]);
++  }, [user, userData, loading, router]);
+ 
+   return (
+     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+diff -ru src/app/profile/page.tsx ctrl-c-ctrl-v/src/app/profile/page.tsx
+--- src/app/profile/page.tsx	2026-02-28 04:22:32
++++ ctrl-c-ctrl-v/src/app/profile/page.tsx	2026-02-28 04:38:58
+@@ -129,10 +129,7 @@
+                 </div>
+ 
+                 {/* Subjects */}
+-                <div className="flex justify-between items-end mb-4 px-2">
+-                    <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Your Subjects</h3>
+-                    <Link href="/onboarding" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Edit Subjects</Link>
+-                </div>
++                <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Your Subjects</h3>
+                 <div className="flex flex-wrap gap-2 mb-8 px-2">
+                     {stats.subjects.map(sub => (
+                         <span key={sub} className="bg-zinc-800 border border-zinc-700 px-4 py-2 rounded-xl text-sm font-medium">
+Only in src/components: auth
+diff -ru src/components/feed/FeedCards.tsx ctrl-c-ctrl-v/src/components/feed/FeedCards.tsx
+--- src/components/feed/FeedCards.tsx	2026-02-28 04:31:48
++++ ctrl-c-ctrl-v/src/components/feed/FeedCards.tsx	2026-02-28 04:38:58
+@@ -206,26 +206,14 @@
+                     className="w-full h-full relative preserve-3d cursor-pointer"
+                 >
+                     {/* Front */}
+-                    <motion.div
+-                        initial={false}
+-                        animate={{ opacity: flipped ? 0 : 1 }}
+-                        transition={{ duration: 0.3 }}
+-                        style={{ backfaceVisibility: "hidden" }}
+-                        className="absolute inset-0 bg-gradient-to-br from-blue-600 to-purple-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-2xl border border-white/10"
+-                    >
++                    <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-blue-600 to-purple-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-2xl border border-white/10">
+                         <BookOpen className="w-16 h-16 text-white/50 mb-6" />
+                         <h2 className="text-3xl font-bold text-white mb-4">{summaryItem.title}</h2>
+                         <p className="text-blue-100/80 font-medium">Tap to reveal key takeaways</p>
+-                    </motion.div>
++                    </div>
+ 
+                     {/* Back */}
+-                    <motion.div
+-                        initial={false}
+-                        animate={{ opacity: flipped ? 1 : 0 }}
+-                        transition={{ duration: 0.3 }}
+-                        style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+-                        className="absolute inset-0 bg-zinc-900 rounded-3xl p-8 flex flex-col justify-center border border-zinc-700 shadow-2xl overflow-y-auto"
+-                    >
++                    <div className="absolute inset-0 backface-hidden rotate-y-180 bg-zinc-900 rounded-3xl p-8 flex flex-col justify-center border border-zinc-700 shadow-2xl overflow-y-auto">
+                         <h3 className="text-xl font-bold text-zinc-100 mb-6 pb-4 border-b border-zinc-800">{summaryItem.title} Key Points</h3>
+                         <ul className="space-y-4">
+                             {summaryItem.points.map((point, idx) => (
+@@ -235,7 +223,7 @@
+                                 </li>
+                             ))}
+                         </ul>
+-                    </motion.div>
++                    </div>
+                 </motion.div>
+             </div>
+             <EngagementBar item={item} userId={userId} />
+@@ -253,7 +241,7 @@
+                 <h2 className="text-2xl font-bold text-white">{(item as VisualItem).title}</h2>
+             </div>
+             <blockquote className="text-2xl font-medium text-white mb-6 leading-relaxed border-l-4 border-purple-500 pl-6 italic">
+-                "{(item as VisualItem).analogy}"
++                &quot;{(item as VisualItem).analogy}&quot;
+             </blockquote>
+             <p className="text-zinc-400 text-lg leading-relaxed">{(item as VisualItem).explanation}</p>
+         </div>
+diff -ru src/components/feed/FeedScroller.tsx ctrl-c-ctrl-v/src/components/feed/FeedScroller.tsx
+--- src/components/feed/FeedScroller.tsx	2026-02-28 04:36:00
++++ ctrl-c-ctrl-v/src/components/feed/FeedScroller.tsx	2026-02-28 04:38:58
+@@ -9,10 +9,10 @@
+ interface FeedScrollerProps {
+     userId: string;
+     subject?: string;
+-    userSubjects?: string[];
++    difficulty?: string;
+ }
+ 
+-export default function FeedScroller({ userId, subject, userSubjects = [] }: FeedScrollerProps) {
++export default function FeedScroller({ userId, subject, difficulty }: FeedScrollerProps) {
+     const [items, setItems] = useState<FeedItemType[]>([]);
+     const [loading, setLoading] = useState(true);
+     const [isGenerating, setIsGenerating] = useState(false);
+@@ -69,21 +69,10 @@
+         if (isGenerating) return;
+         setIsGenerating(true);
+         try {
+-            // Pick a defined subject for generation. If "For You" (undefined subject) is active,
+-            // pick a random subject from the user's list. If they have none, fallback to "general knowledge".
+-            let generateSubject = subject;
+-            if (!generateSubject) {
+-                if (userSubjects.length > 0) {
+-                    generateSubject = userSubjects[Math.floor(Math.random() * userSubjects.length)];
+-                } else {
+-                    generateSubject = "general knowledge";
+-                }
+-            }
+-
+             await fetch("/api/generate-feed", {
+                 method: "POST",
+                 headers: { "Content-Type": "application/json" },
+-                body: JSON.stringify({ userId, subject: generateSubject, expertiseLevel: "beginner" }),
++                body: JSON.stringify({ userId, subject, expertiseLevel: difficulty || "beginner" }),
+             });
+             // The API will save to Firestore, which will trigger the onSnapshot above!
+         } catch (error) {
+@@ -106,7 +95,7 @@
+         });
+ 
+         if (node) observerRef.current.observe(node);
+-    }, [loading, isGenerating, userId, subject]);
++    }, [loading, isGenerating, userId, subject, difficulty]);
+ 
+     if (loading) {
+         return (
+Only in src/components: forum
+Only in src/components: onboarding
+Only in src/components: upload
+diff -ru src/contexts/AuthContext.tsx ctrl-c-ctrl-v/src/contexts/AuthContext.tsx
+--- src/contexts/AuthContext.tsx	2026-02-28 04:09:53
++++ ctrl-c-ctrl-v/src/contexts/AuthContext.tsx	2026-02-28 04:38:58
+@@ -7,11 +7,13 @@
+ 
+ interface AuthContextType {
+     user: User | null;
++    userData: any | null;
+     loading: boolean;
+ }
+ 
+ const AuthContext = createContext<AuthContextType>({
+     user: null,
++    userData: null,
+     loading: true,
+ });
+ 
+@@ -19,6 +21,7 @@
+ 
+ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+     const [user, setUser] = useState<User | null>(null);
++    const [userData, setUserData] = useState<any | null>(null);
+     const [loading, setLoading] = useState(true);
+ 
+     useEffect(() => {
+@@ -40,12 +43,17 @@
+                             streak: 0,
+                             subjects: []
+                         });
++                        setUserData({ uid: firebaseUser.uid, email: firebaseUser.email, displayName: firebaseUser.displayName || 'Learner', xp: 0, streak: 0, subjects: [] });
++                    } else {
++                        setUserData(userSnap.data());
+                     }
+                 } catch (error) {
+                     console.error("Error creating user profile in Firestore:", error);
+                     // We don't throw here to ensure setUser is still called
+                     // and the user can at least access the app even if profile creation fails (e.g., due to strict rules)
+                 }
++            } else {
++                setUserData(null);
+             }
+             setUser(firebaseUser);
+             setLoading(false);
+@@ -55,7 +63,7 @@
+     }, []);
+ 
+     return (
+-        <AuthContext.Provider value={{ user, loading }}>
++        <AuthContext.Provider value={{ user, userData, loading }}>
+             {children}
+         </AuthContext.Provider>
+     );
+Only in src: types
