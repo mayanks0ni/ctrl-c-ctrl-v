@@ -269,9 +269,8 @@ function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef, onViewed
                         fetch("/api/track-engagement", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "viewed" }),
-                            keepalive: true
-                        }).catch(e => console.error("Error sending viewed engagement:", e));
+                            body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "viewed" })
+                        }).catch(e => console.warn("Non-fatal: Error sending viewed engagement, likely cancelled by fast scrolling:", e.message));
                     }
                 } else if (viewTracked.current) {
                     endView(item.id, (item as FeedItemType).subject);
@@ -284,9 +283,8 @@ function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef, onViewed
                             fetch("/api/track-engagement", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "avoided", durationMs }),
-                                keepalive: true
-                            }).catch(e => console.error("Error sending avoided engagement:", e));
+                                body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "avoided", durationMs })
+                            }).catch(e => console.warn("Non-fatal: Error sending avoided engagement, likely cancelled by fast scrolling:", e.message));
                         }
                     }
                 }
