@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { Loader2, HelpCircle, Zap, ArrowRight, ChevronDown } from "lucide-react";
+import { Loader2, Zap, ArrowRight, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FeedScroller from "@/components/feed/FeedScroller";
 import { motion, AnimatePresence } from "framer-motion";
@@ -81,8 +81,11 @@ function QuizContent() {
                 className="max-w-md w-full relative z-10"
             >
                 <div className="text-center mb-10">
-                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/20">
-                        <HelpCircle className="w-10 h-10 text-white" />
+                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/20 text-white">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10">
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
                     </div>
                     <h1 className="text-4xl font-black mb-3 bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
                         Quiz Mode
