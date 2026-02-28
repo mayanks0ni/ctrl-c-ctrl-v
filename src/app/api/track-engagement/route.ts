@@ -22,21 +22,25 @@ export async function POST(req: NextRequest) {
 
             const index = getPineconeIndex();
 
-            await index.upsert({
-                records: [{
-                    id: `avoided-${userId}-${Date.now()}`,
-                    values: embedding,
-                    metadata: {
-                        userId,
-                        type: 'avoided_topic',
-                        text: topic,
-                        timestamp: Date.now(),
-                        durationMs: durationMs || 0
-                    }
-                }]
-            });
+            try {
+                await index.upsert({
+                    records: [{
+                        id: `avoided-${userId}-${Date.now()}`,
+                        values: embedding,
+                        metadata: {
+                            userId,
+                            type: 'avoided_topic',
+                            text: topic,
+                            timestamp: Date.now(),
+                            durationMs: durationMs || 0
+                        }
+                    }]
+                });
+                console.log(`[TRACKING] Avoided topic logged for User ${userId}: ${topic}`);
+            } catch (pineconeErr) {
+                console.warn(`[TRACKING] Non-fatal: Pinecone upsert timed out saving avoided topic. Ignoring. Error:`, (pineconeErr as Error).message);
+            }
 
-            console.log(`[TRACKING] Avoided topic logged for User ${userId}: ${topic}`);
             return NextResponse.json({ success: true, message: "Avoided topic recorded" });
         } else if (engagementType === "viewed") {
             if (!feedId) {

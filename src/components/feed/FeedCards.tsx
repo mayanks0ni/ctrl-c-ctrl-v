@@ -9,7 +9,7 @@ import { db, auth } from "@/lib/firebase/config";
 import Link from "next/link";
 
 // --- Types ---
-type BaseItem = { id: string; type: string; topic: string; upvotes?: number; downvotes?: number; comments?: number; votedBy?: { [userId: string]: 'up' | 'down' }; authorId?: string; authorName?: string; };
+type BaseItem = { id: string; type: string; topic: string; upvotes?: number; downvotes?: number; comments?: number; votedBy?: { [userId: string]: 'up' | 'down' }; authorId?: string; authorName?: string; unsplashUrl?: string; };
 export type SummaryItem = BaseItem & { type: "summary"; title: string; points: string[]; imageQuery?: string; };
 export type PostItem = BaseItem & { type: "post"; hook: string; content: string; imageQuery?: string; };
 export type VisualItem = BaseItem & { type: "visual_concept"; title: string; analogy: string; explanation: string; imageQuery?: string; };
@@ -199,9 +199,9 @@ const EngagementBar = ({ item, userId }: { item: FeedItemType; userId: string })
 // --- Component: Post Card ---
 export const PostCard = ({ item, userId }: Props) => {
     const post = item as PostItem;
-    const imageUrl = (post.imageQuery || post.topic)
+    const imageUrl = post.unsplashUrl || ((post.imageQuery || post.topic)
         ? `https://loremflickr.com/800/1200/${encodeURIComponent(post.imageQuery || post.topic)}`
-        : null;
+        : null);
 
     return (
         <div className="w-full h-full flex items-end pt-28 pb-24 pr-6 pl-24 md:pl-32 relative bg-zinc-950">
@@ -232,9 +232,9 @@ export const PostCard = ({ item, userId }: Props) => {
 export const SummaryCard = ({ item, userId }: Props) => {
     const summaryItem = item as SummaryItem;
     const [flipped, setFlipped] = useState(false);
-    const imageUrl = (summaryItem.imageQuery || summaryItem.topic)
+    const imageUrl = summaryItem.unsplashUrl || ((summaryItem.imageQuery || summaryItem.topic)
         ? `https://loremflickr.com/800/1200/${encodeURIComponent(summaryItem.imageQuery || summaryItem.topic)}`
-        : null;
+        : null);
 
     return (
         <div className="w-full h-full flex flex-col items-center justify-center pt-28 pb-24 pr-6 pl-24 md:pl-32 bg-zinc-950 relative" onClick={() => setFlipped(!flipped)}>
@@ -297,9 +297,9 @@ export const SummaryCard = ({ item, userId }: Props) => {
 // --- Component: Visual Concept Card --- //
 export const VisualCard = ({ item, userId }: Props) => {
     const visual = item as VisualItem;
-    const imageUrl = (visual.imageQuery || visual.topic)
+    const imageUrl = visual.unsplashUrl || ((visual.imageQuery || visual.topic)
         ? `https://loremflickr.com/800/1200/${encodeURIComponent(visual.imageQuery || visual.topic)}`
-        : null;
+        : null);
 
     return (
         <div className="w-full h-full flex flex-col justify-end pt-28 pb-24 pr-6 pl-24 md:pl-32 bg-zinc-950 relative overflow-hidden">
@@ -332,9 +332,9 @@ export const QuizCard = ({ item, userId }: Props) => {
     const quizItem = item as QuizItem;
     const [selected, setSelected] = useState<number | null>(null);
     const [answered, setAnswered] = useState(false);
-    const imageUrl = (quizItem.imageQuery || quizItem.topic)
+    const imageUrl = quizItem.unsplashUrl || ((quizItem.imageQuery || quizItem.topic)
         ? `https://loremflickr.com/800/1200/${encodeURIComponent(quizItem.imageQuery || quizItem.topic)}`
-        : null;
+        : null);
 
     const handleSelect = async (index: number) => {
         if (answered) return;

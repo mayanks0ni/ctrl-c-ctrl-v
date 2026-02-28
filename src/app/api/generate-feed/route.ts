@@ -5,6 +5,26 @@ import { SYSTEM_PROMPT, getGenerateFeedPrompt } from "@/lib/ai/prompts";
 import { db } from "@/lib/firebase/config";
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs, doc, getDoc } from "firebase/firestore";
 
+async function fetchUnsplashImage(queryStr: string): Promise<string | null> {
+    const accessKey = process.env.UNSPLASH_ACCESS_KEY;
+    if (!accessKey) return null;
+
+    try {
+        const url = `https://api.unsplash.com/search/photos?page=1&query=${encodeURIComponent(queryStr)}&client_id=${accessKey}`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+            // Get the regular quality image which is optimized for web sizing
+            return data.results[0].urls.regular;
+        }
+    } catch (error) {
+        console.error("Unsplash fetch error:", error);
+    }
+    return null;
+}
+
 export async function POST(req: NextRequest) {
     try {
         const { userId, subject, expertiseLevel = "intermediate" } = await req.json();
@@ -101,9 +121,14 @@ export async function POST(req: NextRequest) {
                     // and instead uniquely rely on the Firestore auto-generated document ID later.
                     const { id: _ignoredId, ...itemData } = item;
 
+                    // Fetch dynamic high-res Unsplash image
+                    const queryStr = (item.imageQuery as string) || (item.topic as string) || (subject as string) || "education";
+                    const unsplashUrl = await fetchUnsplashImage(queryStr);
+
                     await addDoc(feedsRef, {
                         ...itemData,
                         subject: subject || "general knowledge", // Tag the subject so we can filter later
+                        unsplashUrl: unsplashUrl || null, // Store the Unsplash URL
                         createdAt: serverTimestamp(),
                         generatedBy: userId,
                         authorId: userId,
@@ -141,7 +166,7 @@ export async function POST(req: NextRequest) {
                     });
                     console.log(`[GENERATE_FEED] Upserted summary to Pinecone for ${subject}: ${summaryText}`);
                 } catch (pineconeErr) {
-                    console.error("[GENERATE_FEED] Failed to upsert summary to Pinecone:", pineconeErr);
+                    console.warn(`[GENERATE_FEED] Non-fatal: Failed to upsert summary to Pinecone (often a network timeout or cold start). The feed items were still successfully generated and saved to Firestore. Error:`, (pineconeErr as Error).message);
                 }
             }
 
