@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, XCircle, Lightbulb, Zap, BookOpen, Share2, Heart, MessageCircle, Send, X } from "lucide-react";
-import { doc, updateDoc, increment, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, arrayUnion, arrayRemove } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { CheckCircle2, XCircle, Lightbulb, Zap, BookOpen, MessageCircle, Send, X, ArrowBigUp, ArrowBigDown } from "lucide-react";
+import { doc, updateDoc, increment, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, arrayUnion, arrayRemove, deleteField } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase/config";
+
+import Link from "next/link";
 
 // --- Types ---
-type BaseItem = { id: string; type: string; topic: string; likes?: number; comments?: number; shares?: number; likedBy?: string[]; };
+type BaseItem = { id: string; type: string; topic: string; upvotes?: number; downvotes?: number; comments?: number; votedBy?: { [userId: string]: 'up' | 'down' }; authorId?: string; authorName?: string; };
 export type SummaryItem = BaseItem & { type: "summary"; title: string; points: string[]; };
 export type PostItem = BaseItem & { type: "post"; hook: string; content: string; };
 export type VisualItem = BaseItem & { type: "visual_concept"; title: string; analogy: string; explanation: string; };
@@ -46,6 +48,7 @@ const CommentsModal = ({ feedId, userId, onClose }: { feedId: string, userId: st
             await addDoc(collection(db, `feeds/${feedId}/comments`), {
                 text: newComment.trim(),
                 userId,
+                userName: auth.currentUser?.displayName || "Learner",
                 createdAt: serverTimestamp()
             });
             // 2. Increment comments count on feed doc
@@ -80,10 +83,13 @@ const CommentsModal = ({ feedId, userId, onClose }: { feedId: string, userId: st
                 ) : (
                     comments.map(c => (
                         <div key={c.id} className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0 uppercase">
-                                {c.userId?.substring(0, 2) || "AN"}
-                            </div>
-                            <div className="bg-zinc-800 p-3 rounded-2xl rounded-tl-none w-full">
+                            <Link href={`/profile?id=${c.userId}`} className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0 uppercase hover:bg-blue-500/40 transition">
+                                {c.userName?.charAt(0) || c.userId?.substring(0, 1) || "A"}
+                            </Link>
+                            <div className="bg-zinc-800 p-3 rounded-2xl rounded-tl-none w-full group relative">
+                                <Link href={`/profile?id=${c.userId}`} className="block text-[10px] font-bold text-blue-400/50 hover:text-blue-400 transition mb-1 uppercase tracking-wider">
+                                    {c.userName || "Learner"}
+                                </Link>
                                 <p className="text-white text-sm">{c.text}</p>
                             </div>
                         </div>
@@ -114,53 +120,72 @@ const CommentsModal = ({ feedId, userId, onClose }: { feedId: string, userId: st
 // --- Common Engagement Bar ---
 const EngagementBar = ({ item, userId }: { item: FeedItemType; userId: string }) => {
     const [showComments, setShowComments] = useState(false);
-    const isLiked = item.likedBy?.includes(userId) || false;
 
-    const handleLike = async (e: React.MouseEvent) => {
+    const voteStatus = item.votedBy?.[userId] || null;
+    const upcount = item.upvotes || 0;
+    const downcount = item.downvotes || 0;
+
+    const handleVote = async (type: 'up' | 'down', e: React.MouseEvent) => {
         e.stopPropagation();
         if (!userId || !item.id) return;
         const feedRef = doc(db, "feeds", item.id);
+        const currentVote = item.votedBy?.[userId];
 
-        if (isLiked) {
-            await updateDoc(feedRef, {
-                likes: increment(-1),
-                likedBy: arrayRemove(userId)
-            });
+        let upChange = 0;
+        let downChange = 0;
+        let newVote: 'up' | 'down' | null = type;
+
+        if (currentVote === type) {
+            // Remove vote
+            if (type === 'up') upChange = -1;
+            else downChange = -1;
+            newVote = null;
         } else {
-            await updateDoc(feedRef, {
-                likes: increment(1),
-                likedBy: arrayUnion(userId)
-            });
+            // Set or switch vote
+            if (type === 'up') {
+                upChange = 1;
+                if (currentVote === 'down') downChange = -1;
+            } else {
+                downChange = 1;
+                if (currentVote === 'up') upChange = -1;
+            }
         }
-    };
 
-    const handleShare = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!userId || !item.id) return;
-        const feedRef = doc(db, "feeds", item.id);
-        await updateDoc(feedRef, { shares: increment(1) });
+        const updates: any = {
+            [`votedBy.${userId}`]: newVote === null ? deleteField() : newVote
+        };
+        if (upChange !== 0) updates.upvotes = increment(upChange);
+        if (downChange !== 0) updates.downvotes = increment(downChange);
+
+        await updateDoc(feedRef, updates);
     };
 
     return (
         <>
             <div className="absolute right-4 bottom-24 flex flex-col gap-6 items-center z-40">
-                <button onClick={handleLike} className={`flex flex-col items-center gap-1 transition ${isLiked ? 'text-red-500' : 'text-white hover:text-red-400'}`}>
-                    <div className="w-12 h-12 bg-zinc-800/80 backdrop-blur-md rounded-full flex items-center justify-center">
-                        <Heart className="w-6 h-6" fill={isLiked ? "currentColor" : "none"} />
-                    </div>
-                    <span className="text-xs font-medium">{item.likes || 0}</span>
-                </button>
+                <div className="flex flex-col items-center gap-1">
+                    <button
+                        onClick={(e) => handleVote('up', e)}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${voteStatus === 'up' ? "text-orange-500 border-orange-500" : "text-white border-white/10 hover:text-orange-400"
+                            }`}
+                    >
+                        <ArrowBigUp className={`w-8 h-8 ${voteStatus === 'up' ? "fill-current" : ""}`} />
+                    </button>
+                    <span className="text-white text-xs font-bold drop-shadow-md">{upcount - downcount}</span>
+                    <button
+                        onClick={(e) => handleVote('down', e)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${voteStatus === 'down' ? "text-blue-500 border-blue-500" : "text-white border-white/10 hover:text-blue-400"
+                            }`}
+                    >
+                        <ArrowBigDown className={`w-6 h-6 ${voteStatus === 'down' ? "fill-current" : ""}`} />
+                    </button>
+                </div>
+
                 <button onClick={(e) => { e.stopPropagation(); setShowComments(true); }} className="flex flex-col items-center gap-1 text-white hover:text-blue-400 transition">
                     <div className="w-12 h-12 bg-zinc-800/80 backdrop-blur-md rounded-full flex items-center justify-center">
                         <MessageCircle className="w-6 h-6" />
                     </div>
                     <span className="text-xs font-medium">{item.comments || 0}</span>
-                </button>
-                <button onClick={handleShare} className="flex flex-col items-center gap-1 text-white hover:text-green-400 transition">
-                    <div className="w-12 h-12 bg-zinc-800/80 backdrop-blur-md rounded-full flex items-center justify-center">
-                        <Share2 className="w-6 h-6" />
-                    </div>
-                    <span className="text-xs font-medium">{item.shares || 0}</span>
                 </button>
             </div>
 
@@ -182,8 +207,15 @@ export const PostCard = ({ item, userId }: Props) => (
     <div className="w-full h-full flex items-end pb-24 px-6 relative bg-gradient-to-br from-zinc-900 to-black">
         <div className="absolute inset-0 bg-blue-500/5 mix-blend-overlay" />
         <div className="relative z-10 max-w-[85%]">
-            <div className="bg-white/10 backdrop-blur-md px-3 py-1 text-xs font-semibold rounded-full w-fit mb-4 text-white uppercase tracking-wider">
-                Micro-Lesson
+            <div className="flex gap-2 mb-4">
+                <div className="bg-white/10 backdrop-blur-md px-3 py-1 text-xs font-semibold rounded-full text-white uppercase tracking-wider">
+                    Micro-Lesson
+                </div>
+                {item.authorId && (
+                    <Link href={`/profile?id=${item.authorId}`} className="bg-blue-500/20 backdrop-blur-md px-3 py-1 text-xs font-bold rounded-full text-blue-300 hover:bg-blue-500/40 transition">
+                        By {item.authorName || "Learner"}
+                    </Link>
+                )}
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">{(item as PostItem).hook}</h2>
             <p className="text-lg md:text-xl text-zinc-300 leading-relaxed font-medium">{(item as PostItem).content}</p>
@@ -214,7 +246,12 @@ export const SummaryCard = ({ item, userId }: Props) => {
                         className="absolute inset-0 bg-gradient-to-br from-blue-600 to-purple-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-2xl border border-white/10"
                     >
                         <BookOpen className="w-16 h-16 text-white/50 mb-6" />
-                        <h2 className="text-3xl font-bold text-white mb-4">{summaryItem.title}</h2>
+                        <h2 className="text-3xl font-bold text-white mb-2">{summaryItem.title}</h2>
+                        {item.authorId && (
+                            <Link href={`/profile?id=${item.authorId}`} onClick={(e: React.MouseEvent) => e.stopPropagation()} className="text-xs font-bold text-blue-200 mb-6 opacity-80 hover:opacity-100 hover:text-white transition">
+                                Created by {item.authorName || "Learner"}
+                            </Link>
+                        )}
                         <p className="text-blue-100/80 font-medium">Tap to reveal key takeaways</p>
                     </motion.div>
 
@@ -248,10 +285,15 @@ export const VisualCard = ({ item, userId }: Props) => (
     <div className="w-full h-full flex flex-col justify-end pb-24 px-6 bg-zinc-950 relative overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[120%] h-[120%] bg-purple-600/20 blur-[150px] rounded-full point-events-none" />
         <div className="relative z-10 max-w-[85%] bg-black/40 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400"><Lightbulb className="w-6 h-6" /></div>
                 <h2 className="text-2xl font-bold text-white">{(item as VisualItem).title}</h2>
             </div>
+            {item.authorId && (
+                <Link href={`/profile?id=${item.authorId}`} className="inline-block mb-6 text-xs font-bold text-purple-300 hover:text-purple-200 transition bg-purple-500/10 px-3 py-1 rounded-full">
+                    By {item.authorName || "Learner"}
+                </Link>
+            )}
             <blockquote className="text-2xl font-medium text-white mb-6 leading-relaxed border-l-4 border-purple-500 pl-6 italic">
                 &quot;{(item as VisualItem).analogy}&quot;
             </blockquote>
@@ -282,8 +324,15 @@ export const QuizCard = ({ item, userId }: Props) => {
 
     return (
         <div className="w-full h-full flex flex-col justify-center px-6 bg-zinc-950 relative">
-            <div className="absolute top-12 left-6 bg-yellow-500/20 border border-yellow-500/50 text-yellow-300 px-4 py-1.5 rounded-full flex items-center gap-2 font-bold text-sm tracking-wide">
-                <Zap className="w-4 h-4" /> KNOWLEDGE CHECK
+            <div className="absolute top-12 left-6 flex items-center gap-2">
+                <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-300 px-4 py-1.5 rounded-full flex items-center gap-2 font-bold text-sm tracking-wide">
+                    <Zap className="w-4 h-4" /> KNOWLEDGE CHECK
+                </div>
+                {item.authorId && (
+                    <Link href={`/profile?id=${item.authorId}`} className="bg-zinc-800/80 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-zinc-300 hover:text-white transition border border-zinc-700">
+                        By {item.authorName || "Learner"}
+                    </Link>
+                )}
             </div>
 
             <div className="max-w-[90%] md:max-w-md w-full mx-auto relative z-10">

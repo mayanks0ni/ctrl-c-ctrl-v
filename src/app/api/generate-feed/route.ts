@@ -3,7 +3,7 @@ import { getPineconeIndex } from "@/lib/pinecone/client";
 import { embeddingModelSafe, flashModel } from "@/lib/gemini/client";
 import { SYSTEM_PROMPT, getGenerateFeedPrompt } from "@/lib/ai/prompts";
 import { db } from "@/lib/firebase/config";
-import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs, doc, getDoc } from "firebase/firestore";
 
 export async function POST(req: NextRequest) {
     try {
@@ -73,6 +73,10 @@ export async function POST(req: NextRequest) {
             const feedData = JSON.parse(responseText);
             const items = feedData.items || [];
 
+            // Fetch user's display name to store with the feed items
+            const userDoc = await getDoc(doc(db, "users", userId));
+            const authorName = userDoc.exists() ? (userDoc.data().displayName || "Learner") : "Learner";
+
             // Save items to Firestore async
             if (items.length > 0) {
                 const feedsRef = collection(db, "feeds");
@@ -88,10 +92,12 @@ export async function POST(req: NextRequest) {
                         subject: subject || "general knowledge", // Tag the subject so we can filter later
                         createdAt: serverTimestamp(),
                         generatedBy: userId,
-                        likes: 0,
-                        likedBy: [],
+                        authorId: userId,
+                        authorName: authorName,
+                        upvotes: 0,
+                        downvotes: 0,
+                        votedBy: {},
                         comments: 0,
-                        shares: 0,
                     });
                 }));
             }

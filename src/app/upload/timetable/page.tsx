@@ -1,0 +1,204 @@
+"use client";
+
+import { useState } from "react";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRouter } from "next/navigation";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { doc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { storage, db } from "@/lib/firebase/config";
+import { motion, AnimatePresence } from "framer-motion";
+import { UploadCloud, FileText, Loader2, CheckCircle2, ChevronRight, AlertCircle, Calendar, ArrowLeft } from "lucide-react";
+
+export default function TimetableUploadPage() {
+    const { user, loading: authLoading } = useRequireAuth();
+    const router = useRouter();
+    const [file, setFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+    const [errorMessage, setErrorMessage] = useState("");
+
+    if (authLoading || !user) {
+        return (
+            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            </div>
+        );
+    }
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const selectedFile = e.target.files[0];
+            const validTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+            if (validTypes.includes(selectedFile.type)) {
+                setFile(selectedFile);
+                setStatus("idle");
+            } else {
+                setStatus("error");
+                setErrorMessage("Please upload a PDF or an Image (PNG/JPG).");
+            }
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!file || !user) return;
+
+        setUploading(true);
+        setStatus("uploading");
+
+        try {
+            // 1. Upload to Firebase Storage
+            const storageRef = ref(storage, `users/${user.uid}/timetables/${Date.now()}_${file.name}`);
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadTask.on(
+                "state_changed",
+                (snapshot) => {
+                    const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setProgress(prog);
+                },
+                (error) => {
+                    console.error("Upload Error:", error);
+                    setStatus("error");
+                    setErrorMessage("Failed to upload file. Please try again.");
+                    setUploading(false);
+                },
+                async () => {
+                    try {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+                        // 2. Save/Update timetable info in Firestore
+                        // We'll keep a reference to the latest timetable directly in the user document 
+                        // or in a specific doc to make it easy to find.
+                        const timetableRef = doc(db, `users/${user.uid}/metadata`, "timetable");
+                        await setDoc(timetableRef, {
+                            fileName: file.name,
+                            fileUrl: downloadURL,
+                            fileType: file.type,
+                            uploadedAt: serverTimestamp(),
+                        });
+
+                        setStatus("success");
+                        setTimeout(() => router.push("/profile"), 2000);
+                    } catch (err) {
+                        console.error("Metadata Save Error:", err);
+                        setStatus("error");
+                        setErrorMessage("Failed to save timetable info.");
+                    } finally {
+                        setUploading(false);
+                    }
+                }
+            );
+        } catch (error) {
+            console.error("General Upload Error:", error);
+            setStatus("error");
+            setErrorMessage("An unexpected error occurred.");
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 relative">
+            <div className="absolute top-0 w-full h-96 bg-gradient-to-b from-purple-900/20 to-transparent pointer-events-none" />
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-xl z-10 bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-[3rem] p-10 shadow-2xl"
+            >
+                <div className="flex justify-between items-start mb-8">
+                    <button
+                        onClick={() => router.back()}
+                        className="w-10 h-10 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center text-white hover:bg-zinc-800 transition shadow-lg"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center text-purple-400">
+                        <Calendar className="w-8 h-8" />
+                    </div>
+                    <div className="w-10" /> {/* Spacer */}
+                </div>
+
+                <div className="text-center mb-10">
+                    <h1 className="text-3xl font-bold mb-3 tracking-tight">Upload Timetable</h1>
+                    <p className="text-zinc-400">Share your schedule so your comrades know when you're free to study!</p>
+                </div>
+
+                {/* Upload Dropzone */}
+                {!file && (
+                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-zinc-700/50 rounded-3xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer group">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <UploadCloud className="w-10 h-10 text-zinc-500 mb-4 group-hover:text-purple-400 transition-colors" />
+                            <p className="mb-2 text-sm text-zinc-400"><span className="font-semibold text-white">Click to upload</span> or drag and drop</p>
+                            <p className="text-xs text-zinc-500">PDF, PNG, JPG (MAX. 5MB)</p>
+                        </div>
+                        <input type="file" className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
+                    </label>
+                )}
+
+                {/* File Selected State */}
+                {file && status === "idle" && (
+                    <div className="bg-zinc-800/50 rounded-2xl p-4 flex items-center justify-between border border-zinc-700/50">
+                        <div className="flex items-center gap-4 overflow-hidden">
+                            <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 shrink-0">
+                                <FileText className="w-6 h-6" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-medium text-white truncate">{file.name}</p>
+                                <p className="text-xs text-zinc-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setFile(null)}
+                            className="text-zinc-400 hover:text-white text-sm px-3 py-1 rounded-lg hover:bg-zinc-700 transition"
+                        >
+                            Change
+                        </button>
+                    </div>
+                )}
+
+                {/* Status Indicators */}
+                <AnimatePresence mode="wait">
+                    {status === "uploading" && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-8 space-y-3">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-zinc-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-purple-400" /> Uploading...</span>
+                                <span className="font-medium">{Math.round(progress)}%</span>
+                            </div>
+                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden border border-zinc-700/30">
+                                <div className="bg-purple-500 h-2 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" style={{ width: `${progress}%` }}></div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {status === "success" && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mt-8 bg-green-500/10 border border-green-500/20 rounded-2xl p-6 text-center">
+                            <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-3" />
+                            <p className="font-bold text-white text-lg">Timetable Shared!</p>
+                            <p className="text-sm text-zinc-400">Returning to your profile...</p>
+                        </motion.div>
+                    )}
+
+                    {status === "error" && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-sm text-red-400">{errorMessage}</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Action Button */}
+                {status === "idle" && file && (
+                    <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={handleUpload}
+                        className="w-full mt-8 bg-purple-600 text-white font-bold text-lg rounded-2xl py-4 flex items-center justify-center gap-2 hover:bg-purple-500 transition-all shadow-[0_0_30px_rgba(168,85,247,0.2)] hover:shadow-[0_0_40px_rgba(168,85,247,0.4)]"
+                    >
+                        Share Timetable <ChevronRight className="w-5 h-5" />
+                    </motion.button>
+                )}
+            </motion.div>
+        </div>
+    );
+}

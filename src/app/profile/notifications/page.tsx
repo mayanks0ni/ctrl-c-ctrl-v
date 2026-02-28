@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { Loader2, ArrowLeft, MessageSquare, UserPlus, Bell, CheckCircle2, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, UserPlus, Bell, CheckCircle2, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -18,6 +18,7 @@ interface Notification {
     link: string;
     isRead: boolean;
     createdAt: any;
+    requestId?: string;
 }
 
 export default function NotificationsPage() {
@@ -136,9 +137,25 @@ export default function NotificationsPage() {
                                         </div>
 
                                         <div className="flex-1 min-w-0 pr-8">
-                                            <p className={`text-sm leading-relaxed ${n.isRead ? 'text-zinc-400' : 'text-zinc-100 font-medium'}`}>
-                                                {n.message}
-                                            </p>
+                                            <div className={`text-sm leading-relaxed ${n.isRead ? 'text-zinc-400' : 'text-zinc-100'}`}>
+                                                <Link href={`/profile?id=${n.fromUserId}`} className="font-bold hover:text-blue-400 transition">
+                                                    {n.fromUserName}
+                                                </Link>
+                                                {" "}
+                                                <span className={n.isRead ? 'text-zinc-500' : 'text-zinc-300'}>
+                                                    {n.type === 'reply' ? 'replied to your post' : 'sent you a comrade request'}
+                                                </span>
+                                                {n.type === 'reply' && n.message.includes(' in ') && (
+                                                    <span className="text-zinc-500 italic">
+                                                        {n.message.split('replied to your post')[1]}
+                                                    </span>
+                                                )}
+                                                {n.type === 'comrade_request' && n.message.includes(' studying ') && (
+                                                    <span className="text-zinc-500 italic">
+                                                        {n.message.split(n.fromUserName)[1]?.replace(' sent you a comrade request.', '')}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">
                                                 {n.createdAt?.toDate().toLocaleDateString(undefined, {
                                                     month: 'short',
@@ -149,14 +166,40 @@ export default function NotificationsPage() {
                                             </p>
 
                                             <div className="mt-3 flex gap-2">
-                                                <Link
-                                                    href={n.link}
-                                                    onClick={() => markAsRead(n.id)}
-                                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5"
-                                                >
-                                                    View Details
-                                                </Link>
-                                                {!n.isRead && (
+                                                {n.type === 'comrade_request' && n.requestId ? (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                const { acceptFriendRequest } = await import("@/lib/social");
+                                                                await acceptFriendRequest(n.requestId!, n.fromUserId, user!.uid);
+                                                                await markAsRead(n.id);
+                                                                // Local feedback: maybe remove or update message
+                                                            }}
+                                                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20"
+                                                        >
+                                                            <CheckCircle2 className="w-3.5 h-3.5" /> Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const { rejectFriendRequest } = await import("@/lib/social");
+                                                                await rejectFriendRequest(n.requestId!);
+                                                                await markAsRead(n.id);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" /> Reject
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <Link
+                                                        href={n.link}
+                                                        onClick={() => markAsRead(n.id)}
+                                                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5"
+                                                    >
+                                                        View Details
+                                                    </Link>
+                                                )}
+                                                {!n.isRead && n.type !== 'comrade_request' && (
                                                     <button
                                                         onClick={() => markAsRead(n.id)}
                                                         className="px-3 py-1.5 text-blue-400 hover:text-blue-300 text-[10px] font-bold transition"

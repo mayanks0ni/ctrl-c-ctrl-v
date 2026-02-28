@@ -33,7 +33,7 @@ export async function sendFriendRequest(fromUid: string, fromName: string, toUid
     const existing = await getDocs(q);
     if (!existing.empty) return;
 
-    await addDoc(requestsRef, {
+    const requestDoc = await addDoc(requestsRef, {
         from: fromUid,
         fromName,
         to: toUid,
@@ -58,6 +58,7 @@ export async function sendFriendRequest(fromUid: string, fromName: string, toUid
             type: 'comrade_request',
             fromUserId: fromUid,
             fromUserName: fromName,
+            requestId: requestDoc.id,
             message: `${fromName}${subjectsMsg} sent you a comrade request.`,
             link: `/profile?id=${fromUid}`,
             isRead: false,

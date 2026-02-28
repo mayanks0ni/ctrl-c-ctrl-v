@@ -6,7 +6,7 @@ import { doc, getDoc, collection, getDocs, orderBy, query, limit, where, onSnaps
 import { db, auth } from "@/lib/firebase/config";
 import { signOut } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Zap, Flame, Trophy, LogOut, FileText, ArrowLeft, UserPlus, Check, X, Users, Bell } from "lucide-react";
+import { Loader2, Zap, Flame, Trophy, LogOut, FileText, ArrowLeft, UserPlus, Check, X, Users, Bell, Calendar, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPendingRequests, getComrades, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, FriendRequest } from "@/lib/social";
@@ -37,6 +37,8 @@ function ProfileContent() {
     const [leaderboard, setLeaderboard] = useState<{ id: string; displayName: string; xp: number }[]>([]);
     const [fetchingLeaderboard, setFetchingLeaderboard] = useState(true);
     const [leaderboardView, setLeaderboardView] = useState<'global' | 'comrades'>('global');
+
+    const [timetable, setTimetable] = useState<any>(null);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -71,6 +73,12 @@ function ProfileContent() {
                         const snap = await getDocs(q);
                         setIsRequestSent(!snap.empty);
                     }
+                }
+
+                // Fetch timetable
+                const timetableSnap = await getDoc(doc(db, `users/${uidToFetch}/metadata`, "timetable"));
+                if (timetableSnap.exists()) {
+                    setTimetable(timetableSnap.data());
                 }
 
                 // Only fetch private data if own profile
@@ -263,12 +271,12 @@ function ProfileContent() {
                                         <div className="space-y-2">
                                             {pendingRequests.map(req => (
                                                 <div key={req.id} className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-sm">
+                                                    <Link href={`/profile?id=${req.from}`} className="flex items-center gap-3 hover:opacity-80 transition group">
+                                                        <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-sm group-hover:scale-105 transition">
                                                             {req.fromName.charAt(0).toUpperCase()}
                                                         </div>
-                                                        <p className="font-bold text-sm">{req.fromName}</p>
-                                                    </div>
+                                                        <p className="font-bold text-sm group-hover:text-blue-400 transition">{req.fromName}</p>
+                                                    </Link>
                                                     <div className="flex gap-2">
                                                         <button onClick={() => handleAccept(req)} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition"><Check className="w-4 h-4" /></button>
                                                         <button onClick={() => handleReject(req.id)} className="p-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition"><X className="w-4 h-4" /></button>
@@ -300,6 +308,47 @@ function ProfileContent() {
                             </div>
                         </>
                     )}
+
+                    {/* Timetable Section */}
+                    <div className="mb-8">
+                        <div className="flex justify-between items-center mb-4 px-2">
+                            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">
+                                {isOwnProfile ? "Your Timetable" : `${stats.displayName}'s Timetable`}
+                            </h3>
+                            {isOwnProfile && (
+                                <Link href="/upload/timetable" className="text-sm font-bold text-purple-400 hover:text-purple-300 transition flex items-center gap-1">
+                                    {timetable ? "Update" : "Upload"} +
+                                </Link>
+                            )}
+                        </div>
+                        {timetable ? (
+                            <Link
+                                href={timetable.fileUrl}
+                                target="_blank"
+                                className="group relative bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl flex items-center gap-4 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-purple-500/0 -translate-x-full group-hover:animate-shimmer" />
+                                <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400 shrink-0 shadow-lg">
+                                    <Calendar className="w-6 h-6" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-zinc-100 truncate group-hover:text-purple-300 transition">{timetable.fileName}</p>
+                                    <p className="text-xs text-zinc-500 mt-0.5">Click to view schedule • {timetable.fileType?.includes('pdf') ? 'PDF' : 'Image'}</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        ) : (
+                            <div className="bg-zinc-900/30 border border-dashed border-zinc-800/80 rounded-3xl p-8 text-center">
+                                <Calendar className="w-8 h-8 text-zinc-700 mx-auto mb-3 opacity-20" />
+                                <p className="text-sm text-zinc-600 italic">No timetable shared yet.</p>
+                                {isOwnProfile && (
+                                    <Link href="/upload/timetable" className="inline-block mt-4 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-xl transition">
+                                        Upload Now
+                                    </Link>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="flex justify-between items-center mb-4 px-2">
                         <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">{isOwnProfile ? "Your Subjects" : `${stats.displayName}'s Subjects`}</h3>
@@ -448,6 +497,7 @@ function ProfileContent() {
                                                     ? 'bg-blue-600/20 border-blue-400/50 shadow-lg shadow-blue-500/10 ring-1 ring-blue-400/30'
                                                     : 'bg-zinc-950/50 border-zinc-800/50 hover:bg-zinc-800/50'
                                                 }`}
+                                            onClick={() => router.push(`/profile?id=${userStats.id}`)}
                                         >
                                             {/* Hover highlight effect */}
                                             <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:animate-shimmer" />
@@ -461,7 +511,7 @@ function ProfileContent() {
                                             </div>
 
                                             <div className="min-w-0 flex-1">
-                                                <p className={`font-bold text-sm truncate ${isCurrentUser ? 'text-blue-300' : 'text-zinc-200'}`}>
+                                                <p className={`font-bold text-sm truncate ${isCurrentUser ? 'text-blue-300' : 'text-zinc-200 hover:text-blue-400 transition'}`}>
                                                     {userStats.displayName} {isCurrentUser && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full ml-1">You</span>}
                                                 </p>
                                                 <div className="flex items-center gap-1.5 mt-0.5">
