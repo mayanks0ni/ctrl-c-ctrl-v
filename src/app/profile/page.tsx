@@ -284,6 +284,7 @@ function ProfileContent() {
                     {isOwnProfile && stats && (
                         <EduWrapped
                             userId={user.uid}
+                            displayName={stats.displayName}
                             xp={stats.xp}
                             subjects={stats.subjects}
                             comrades={comrades}
