@@ -9,7 +9,7 @@ import { db, auth } from "@/lib/firebase/config";
 import Link from "next/link";
 
 // --- Types ---
-type BaseItem = { id: string; type: string; topic: string; upvotes?: number; downvotes?: number; comments?: number; votedBy?: { [userId: string]: 'up' | 'down' }; authorId?: string; authorName?: string; unsplashUrl?: string; };
+type BaseItem = { id: string; type: string; topic: string; subject?: string; upvotes?: number; downvotes?: number; comments?: number; votedBy?: { [userId: string]: 'up' | 'down' }; authorId?: string; authorName?: string; unsplashUrl?: string; };
 export type SummaryItem = BaseItem & { type: "summary"; title: string; points: string[]; imageQuery?: string; };
 export type PostItem = BaseItem & { type: "post"; hook: string; content: string; imageQuery?: string; };
 export type VisualItem = BaseItem & { type: "visual_concept"; title: string; analogy: string; explanation: string; imageQuery?: string; };

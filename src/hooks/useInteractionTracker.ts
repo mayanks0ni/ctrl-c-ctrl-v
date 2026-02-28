@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { db } from "@/lib/firebase/config";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
@@ -17,7 +17,7 @@ interface InteractionData {
 export const useInteractionTracker = (userId: string | undefined) => {
     const viewStartTime = useRef<{ [feedId: string]: number }>({});
 
-    const trackInteraction = async (data: InteractionData) => {
+    const trackInteraction = useCallback(async (data: InteractionData) => {
         if (!userId) return;
 
         try {
@@ -29,13 +29,13 @@ export const useInteractionTracker = (userId: string | undefined) => {
         } catch (error) {
             console.error("[Tracker] Failed to log interaction:", error);
         }
-    };
+    }, [userId]);
 
-    const startView = (feedId: string) => {
+    const startView = useCallback((feedId: string) => {
         viewStartTime.current[feedId] = Date.now();
-    };
+    }, []);
 
-    const endView = (feedId: string, subject?: string) => {
+    const endView = useCallback((feedId: string, subject?: string) => {
         const startTime = viewStartTime.current[feedId];
         if (startTime) {
             const duration = Math.floor((Date.now() - startTime) / 1000);
@@ -49,7 +49,7 @@ export const useInteractionTracker = (userId: string | undefined) => {
             }
             delete viewStartTime.current[feedId];
         }
-    };
+    }, [trackInteraction]);
 
     return { trackInteraction, startView, endView };
 };

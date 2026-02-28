@@ -166,7 +166,10 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     }, [loading, isGenerating, triggerGeneration]);
 
     const handleTopicViewed = useCallback((topic: string) => {
-        setViewedTopics(prev => new Set(prev).add(topic));
+        setViewedTopics(prev => {
+            if (prev.has(topic)) return prev; // Prevent React re-render infinite loops
+            return new Set(prev).add(topic);
+        });
     }, []);
 
     if (loading) {
@@ -271,7 +274,7 @@ function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef, onViewed
                         }).catch(e => console.error("Error sending viewed engagement:", e));
                     }
                 } else if (viewTracked.current) {
-                    endView(item.id, (item as any).subject);
+                    endView(item.id, (item as FeedItemType).subject);
                     viewTracked.current = false;
 
                     if (startTimeRef.current) {
@@ -292,12 +295,12 @@ function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef, onViewed
 
         observer.observe(node);
         return () => observer.disconnect();
-    }, [item.id, item.topic, userId, startView, endView, onViewed]);
+    }, [item, userId, startView, endView, onViewed]);
 
     return (
         <div
             ref={(node) => {
-                (cardRef as any).current = node;
+                (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
                 if (isTriggerElement && node) lastItemRef(node);
             }}
             className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black"
