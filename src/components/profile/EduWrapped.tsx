@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Brain, TrendingUp, History, Users, ChevronRight, BarChart3, Clock, Sparkles } from "lucide-react";
+import { Zap, Brain, TrendingUp, History, Users, ChevronRight, BarChart3, Clock, Sparkles, Download, Loader2 } from "lucide-react";
 import { collection, query, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { toPng } from "html-to-image";
 
 interface EduWrappedProps {
     userId: string;
@@ -14,9 +15,41 @@ interface EduWrappedProps {
 }
 
 export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappedProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const [interactions, setInteractions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [activeSlide, setActiveSlide] = useState(0);
+
+    const downloadAsImage = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!containerRef.current) return;
+
+        try {
+            setIsDownloading(true);
+            // Wait a beat for any layout shifts
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // 4K resolution capture
+            // Standard 4K is 3840 x 2160. We'll use pixelRatio to achieve high quality.
+            const dataUrl = await toPng(containerRef.current, {
+                pixelRatio: 4, // Increases resolution significantly for "4K" feel
+                backgroundColor: '#09090b', // zinc-950
+                style: {
+                    borderRadius: '0', // Optional: square corners for download
+                }
+            });
+
+            const link = document.createElement('a');
+            link.download = `edu-wrapped-${activeSlide}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (err) {
+            console.error("Download failed:", err);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     useEffect(() => {
         const fetchInteractions = async () => {
@@ -160,7 +193,15 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
                     </h2>
                     <p className="text-zinc-500 text-sm">Your learning journey, synthesized.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <button
+                        onClick={downloadAsImage}
+                        disabled={isDownloading}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 mr-2 border border-zinc-700 disabled:opacity-50"
+                    >
+                        {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        4K PNG
+                    </button>
                     {slides.map((_, i) => (
                         <button
                             key={i}
@@ -175,6 +216,7 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
             </div>
 
             <div
+                ref={containerRef}
                 onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
                 className="relative overflow-hidden bg-zinc-900/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] min-h-[400px] cursor-pointer group hover:bg-zinc-900/60 transition-colors"
             >
