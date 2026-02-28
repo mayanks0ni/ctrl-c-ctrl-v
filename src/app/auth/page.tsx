@@ -76,9 +76,9 @@ export default function AuthPage() {
                     </div>
                 </div>
 
-                <h1 className="text-3xl font-bold text-center text-white mb-2 tracking-tight">
-                    Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Brightly</span>
-                </h1>
+                <h2 className="text-3xl font-bold text-center text-white mb-2 tracking-tight">
+                    Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Cascade</span>
+                </h2>
                 <p className="text-zinc-400 text-center mb-8">
                     {isLogin ? "Welcome back! Ready to learn?" : "Join the microlearning revolution."}
                 </p>

@@ -7,7 +7,7 @@ import Sidebar from "@/components/navigation/Sidebar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Brightly",
+  title: "Cascade",
   description: "Personalized short-form learning platform",
 };
 

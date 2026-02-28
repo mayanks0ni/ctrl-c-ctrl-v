@@ -35,6 +35,9 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
 
     // Detect Exit Intent for Summary
     useEffect(() => {
+        // Push a dummy history entry so we can intercept the back button
+        window.history.pushState({ exitIntentGuard: true }, "");
+
         const checkIntentAndTrigger = () => {
             if (viewedTopics.size > 0 && !showSummary && !hasShownExitPrompt.current) {
                 setShowSummary(true);
@@ -63,16 +66,26 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             }
         };
 
+        const handlePopState = (e: PopStateEvent) => {
+            // The user pressed Back — intercept it and show the summary
+            if (checkIntentAndTrigger()) {
+                // Re-push the guard so that a second back press navigates away normally
+                window.history.pushState({ exitIntentGuard: true }, "");
+            }
+        };
+
         window.addEventListener("mouseleave", handleMouseLeave);
         document.addEventListener("visibilitychange", handleVisibilityChange);
         window.addEventListener("pagehide", handlePageHide);
         window.addEventListener("beforeunload", handleBeforeUnload);
+        window.addEventListener("popstate", handlePopState);
 
         return () => {
             window.removeEventListener("mouseleave", handleMouseLeave);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
             window.removeEventListener("pagehide", handlePageHide);
             window.removeEventListener("beforeunload", handleBeforeUnload);
+            window.removeEventListener("popstate", handlePopState);
         };
     }, [viewedTopics, showSummary]);
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { X, Trophy, Sparkles, ArrowRight, Loader2, BookOpen } from "lucide-react";
+import { X, Trophy, Sparkles, ArrowRight, Loader2, Download } from "lucide-react";
+import { toPng } from "html-to-image";
 
 interface SessionSummaryModalProps {
     topics: string[];
@@ -13,7 +14,9 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
     const [summary, setSummary] = useState<string>("");
     const [flowchart, setFlowchart] = useState<string>("");
     const [loading, setLoading] = useState(true);
+    const [downloading, setDownloading] = useState(false);
     const [xp, setXp] = useState(0);
+    const chartRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchSummary = async () => {
@@ -26,7 +29,7 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
                 const data = await res.json();
                 setSummary(data.summary);
                 if (data.flowchart) setFlowchart(data.flowchart);
-                setXp(topics.length * 15); // 15 XP per topic viewed
+                setXp(topics.length * 15);
             } catch (error) {
                 console.error("Failed to fetch session summary", error);
                 setSummary("You've covered some great ground today! Keep up the momentum.");
@@ -35,36 +38,28 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
             }
         };
 
-        if (topics.length > 0) {
-            fetchSummary();
-        }
+        if (topics.length > 0) fetchSummary();
     }, [topics]);
 
-    const handleDownload = () => {
-        // Find the injected mermaid SVG path
-        const svgElement = document.querySelector(".mermaid svg");
-        if (!svgElement) return;
-
-        const serializer = new XMLSerializer();
-        let source = serializer.serializeToString(svgElement);
-
-        // Add namespaces
-        if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
-            source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+    const handleDownload = async () => {
+        if (!chartRef.current) return;
+        setDownloading(true);
+        try {
+            const dataUrl = await toPng(chartRef.current, {
+                backgroundColor: "#18181b",
+                pixelRatio: 2,
+            });
+            const link = document.createElement("a");
+            link.href = dataUrl;
+            link.download = "Cascade_Learning_Roadmap.png";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Download failed:", err);
+        } finally {
+            setDownloading(false);
         }
-        if (!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
-            source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
-        }
-        // Add minimal black-white transparent styles for SVG download export visibility
-        source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
-        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
-
-        const downloadLink = document.createElement("a");
-        downloadLink.href = url;
-        downloadLink.download = "My_Hackathon_Learning_Roadmap.svg";
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
     };
 
     return (
@@ -106,20 +101,33 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
                         </div>
                     </div>
 
-                    {/* AI Flow Summary */}
+                    {/* Topics List */}
+                    <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3 text-purple-400 font-bold text-xs uppercase tracking-wider">
+                            <Sparkles className="w-4 h-4" /> Topics Studied
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {topics.map((t, i) => (
+                                <span key={i} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-sm text-zinc-200 font-medium">
+                                    {t}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* AI Summary */}
                     <div className="mb-6">
                         <div className="flex items-center gap-2 mb-4 text-blue-400 font-bold text-sm uppercase tracking-wider">
                             <Sparkles className="w-4 h-4" /> The Learning Flow
                         </div>
-
-                        <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/5 relative">
+                        <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/5">
                             {loading ? (
                                 <div className="flex flex-col items-center py-6 text-zinc-500 italic">
                                     <Loader2 className="w-6 h-6 animate-spin mb-4 text-blue-500" />
                                     Synthesizing your journey...
                                 </div>
                             ) : (
-                                <p className="text-zinc-200 text-base leading-relaxed font-medium italic italic-quote">
+                                <p className="text-zinc-200 text-base leading-relaxed font-medium italic">
                                     &quot;{summary}&quot;
                                 </p>
                             )}
@@ -128,9 +136,9 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
 
                     {/* Mermaid Visual Roadmap */}
                     {!loading && flowchart && (
-                        <div className="mb-8 p-4 bg-white/5 rounded-xl border border-white/10 flex flex-col items-center">
-                            <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-4 w-full text-left">Your Roadmap</p>
-                            <div className="w-full overflow-x-auto custom-scrollbar pb-2">
+                        <div ref={chartRef} className="mb-8 p-6 bg-zinc-800 rounded-xl border border-white/10">
+                            <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-4">Your Roadmap</p>
+                            <div className="w-full overflow-x-auto pb-2">
                                 <MermaidRender chart={flowchart} />
                             </div>
                         </div>
@@ -141,10 +149,15 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
                         {!loading && flowchart && (
                             <button
                                 onClick={handleDownload}
-                                className="w-full bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                                disabled={downloading}
+                                className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-white/10 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Download Map
+                                {downloading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <Download className="w-5 h-5" />
+                                )}
+                                {downloading ? "Generating..." : "Download Map"}
                             </button>
                         )}
                         <button
@@ -160,19 +173,35 @@ export default function SessionSummaryModal({ topics, onClose }: SessionSummaryM
     );
 }
 
-// Sub-component wrapper to manually instantiate Mermaid on the strictly-rendered string
 function MermaidRender({ chart }: { chart: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
-        import('mermaid').then(mermaid => {
+        if (!containerRef.current || !chart) return;
+
+        const id = `mermaid-${Math.random().toString(36).slice(2)}`;
+
+        import('mermaid').then(async (mermaid) => {
             mermaid.default.initialize({
-                startOnLoad: true,
+                startOnLoad: false,
                 theme: 'dark',
                 securityLevel: 'loose',
-                fontFamily: 'Inter, sans-serif'
+                fontFamily: 'Inter, sans-serif',
             });
-            mermaid.default.run();
+
+            try {
+                const { svg } = await mermaid.default.render(id, chart);
+                if (containerRef.current) {
+                    containerRef.current.innerHTML = svg;
+                }
+            } catch (err) {
+                console.error("Mermaid render error:", err);
+                if (containerRef.current) {
+                    containerRef.current.innerHTML = `<p class="text-zinc-500 text-sm text-center py-4">Could not render flowchart.</p>`;
+                }
+            }
         });
     }, [chart]);
 
-    return <div className="mermaid text-center w-full min-h-[150px]">{chart}</div>;
+    return <div ref={containerRef} className="w-full min-h-[150px] flex items-center justify-center" />;
 }
