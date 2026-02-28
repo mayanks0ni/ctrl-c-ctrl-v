@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, NotebookPen, Zap, Loader2 } from "lucide-react";
@@ -40,7 +41,7 @@ function NavButton({
     return <button onClick={onClick} className="pointer-events-auto block outline-none text-left w-fit">{inner}</button>;
 }
 
-export default function Sidebar() {
+function SidebarContent() {
     const { user, loading } = useAuth();
     const pathname = usePathname();
 
@@ -84,5 +85,13 @@ export default function Sidebar() {
                 />
             </div>
         </div>
+    );
+}
+
+export default function Sidebar() {
+    return (
+        <Suspense fallback={null}>
+            <SidebarContent />
+        </Suspense>
     );
 }

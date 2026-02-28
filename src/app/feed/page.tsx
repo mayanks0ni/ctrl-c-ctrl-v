@@ -5,7 +5,7 @@ import FeedScroller from "@/components/feed/FeedScroller";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, ChevronDown, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
@@ -14,7 +14,7 @@ interface SelectedSubject {
     difficulty: "intermediate" | "beginner" | "advanced";
 }
 
-export default function FeedPage() {
+function FeedContent() {
     const { user, loading } = useRequireAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -112,5 +112,17 @@ export default function FeedPage() {
                 userSubjects={subjects}
             />
         </div>
+    );
+}
+
+export default function FeedPage() {
+    return (
+        <Suspense fallback={
+            <div className="h-screen w-full flex items-center justify-center bg-black">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            </div>
+        }>
+            <FeedContent />
+        </Suspense>
     );
 }

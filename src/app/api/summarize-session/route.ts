@@ -14,20 +14,27 @@ export async function POST(req: NextRequest) {
         The user has just finished a learning session where they covered the following topics:
         ${topics.join(", ")}
 
-        Please generate a very short (2-3 sentences), engaging, and cohesive "learning flow" recap. 
-        It should explain how these topics connect or summarize the general theme of their session. 
-        Use an encouraging and academic yet modern tone (like a friendly micro-learning app).
-        Avoid generic "Good job" phrases. Focus on the actual content relationships.
+        You must return ONLY a strictly valid JSON object with exactly two keys: "summary" and "flowchart". Do not include markdown codeblocks like \`\`\`json.
+        
+        1. "summary": A very short (2-3 sentences), engaging, cohesive "learning flow" recap explaining how these topics connect.
+        2. "flowchart": A valid Mermaid.js flowchart (graph TD) syntax string mapping the sequence or relationship of the topics. Use simple A --> B syntax. Only use standard alphanumeric labels. Do not use complex mermaid styling.
         `;
 
         const combinedPrompt = `${SYSTEM_PROMPT}\n\nTask:\n${prompt}`;
 
         const result = await flashModel.generateContent(combinedPrompt);
-        const responseText = result.response.text();
+        const responseText = result.response.text().trim().replace(/^```json\s*/, '').replace(/```$/, '').trim();
 
-        return NextResponse.json({
-            summary: responseText.trim().replace(/^"|"$/g, '')
-        });
+        try {
+            const parsedData = JSON.parse(responseText);
+            return NextResponse.json(parsedData);
+        } catch (e) {
+            console.error("Failed to parse Gemini JSON:", responseText);
+            return NextResponse.json({
+                summary: responseText,
+                flowchart: "graph TD\nError --> CouldNotGenerate"
+            });
+        }
 
     } catch (error: unknown) {
         console.error("Error in summarize-session API:", error);

@@ -31,16 +31,50 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     // Dynamic subject selection based on intervention or props
     const activeSubject = hijackedSubject || subject;
 
+    const hasShownExitPrompt = useRef(false);
+
     // Detect Exit Intent for Summary
     useEffect(() => {
-        const handleExitIntent = (e: MouseEvent) => {
-            if (e.clientY <= 0 && viewedTopics.size > 0) {
+        const checkIntentAndTrigger = () => {
+            if (viewedTopics.size > 0 && !showSummary && !hasShownExitPrompt.current) {
                 setShowSummary(true);
+                hasShownExitPrompt.current = true;
+                return true;
+            }
+            return false;
+        };
+
+        const handleMouseLeave = (e: MouseEvent) => {
+            if (e.clientY <= 0) checkIntentAndTrigger();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "hidden") checkIntentAndTrigger();
+        };
+
+        const handlePageHide = () => checkIntentAndTrigger();
+
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (viewedTopics.size > 0 && !hasShownExitPrompt.current) {
+                checkIntentAndTrigger();
+                e.preventDefault();
+                e.returnValue = "Wait! Don't forget to save your learning roadmap.";
+                return e.returnValue;
             }
         };
-        window.addEventListener("mouseleave", handleExitIntent);
-        return () => window.removeEventListener("mouseleave", handleExitIntent);
-    }, [viewedTopics]);
+
+        window.addEventListener("mouseleave", handleMouseLeave);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("pagehide", handlePageHide);
+        window.addEventListener("beforeunload", handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener("mouseleave", handleMouseLeave);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("pagehide", handlePageHide);
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [viewedTopics, showSummary]);
 
     // 2. Function to trigger background generation
     const triggerGeneration = useCallback(async () => {
