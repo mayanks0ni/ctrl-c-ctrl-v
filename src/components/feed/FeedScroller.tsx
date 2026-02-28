@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { FeedItemType, PostCard, SummaryCard, VisualCard, QuizCard } from "./FeedCards";
 import FocusInterrupter from "./FocusInterrupter";
 import { Loader2 } from "lucide-react";
-import { collection, query, orderBy, onSnapshot, where, doc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { useInteractionTracker } from "@/hooks/useInteractionTracker";
 import SessionSummaryModal from "./SessionSummaryModal";
@@ -50,11 +50,19 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             let generateSubject = activeSubject;
             let generateDifficulty = difficulty;
 
+            // Fetch user-specific expertise for this topic from the doc
+            const userSnap = await getDoc(doc(db, "users", userId));
+            const userData = userSnap.data();
+
+            if (activeSubject && userData?.topicExpertise?.[activeSubject]) {
+                generateDifficulty = userData.topicExpertise[activeSubject];
+            }
+
             if (!generateSubject) {
                 if (userSubjects.length > 0) {
                     const randomSubject = userSubjects[Math.floor(Math.random() * userSubjects.length)];
                     generateSubject = randomSubject.name;
-                    generateDifficulty = randomSubject.difficulty;
+                    generateDifficulty = userData?.topicExpertise?.[generateSubject] || randomSubject.difficulty;
                 } else {
                     generateSubject = "general knowledge";
                     generateDifficulty = "beginner";
@@ -84,9 +92,13 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         if (!userId) return;
 
         let viewedReels: string[] = [];
+        let retryQuizzes: string[] = [];
+
         const userUnsubscribe = onSnapshot(doc(db, "users", userId), (docSnap) => {
             if (docSnap.exists()) {
-                viewedReels = docSnap.data()?.viewedReels || [];
+                const data = docSnap.data();
+                viewedReels = data?.viewedReels || [];
+                retryQuizzes = data?.retryQuizzes || [];
             }
         });
 
@@ -95,21 +107,30 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             q = query(collection(db, "feeds"), where("subject", "==", activeSubject), orderBy("createdAt", "desc"));
         }
 
-        const feedsUnsubscribe = onSnapshot(q, (snapshot) => {
+        const feedsUnsubscribe = onSnapshot(q, async (snapshot) => {
             const feedItems: FeedItemType[] = [];
+            const retryItemsRaw: FeedItemType[] = [];
+
+            // Separate retries from general feed items
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                if (data.type && !viewedReels.includes(doc.id)) {
-                    // Filter by quiz only if needed
-                    if (quizOnly && data.type !== "quiz") return;
-                    feedItems.push({ ...data, id: doc.id } as FeedItemType);
+                if (data.type) {
+                    const item = { ...data, id: doc.id } as FeedItemType;
+                    if (retryQuizzes.includes(doc.id)) {
+                        retryItemsRaw.push(item);
+                    } else if (!viewedReels.includes(doc.id)) {
+                        if (quizOnly && data.type !== "quiz") return;
+                        feedItems.push(item);
+                    }
                 }
             });
 
             if (quizOnly) {
                 setItems(prevItems => {
                     const availableQuizzes = feedItems.filter(item => !prevItems.some(p => p.id === item.id));
-                    return [...prevItems, ...availableQuizzes];
+                    // Also include retries for the quizOnly mode
+                    const availableRetries = retryItemsRaw.filter(item => !prevItems.some(p => p.id === item.id));
+                    return [...prevItems, ...availableRetries, ...availableQuizzes];
                 });
                 setLoading(false);
                 if (feedItems.length === 0 && !isGenerating) triggerGeneration();
@@ -132,9 +153,14 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             };
             shuffleArray(quizzes);
             shuffleArray(general);
+            shuffleArray(retryItemsRaw);
 
             setItems(prevItems => {
-                const updatedPrevItems = prevItems.map(p => feedItems.find(f => f.id === p.id) || p).filter(p => !viewedReels.includes(p.id));
+                const updatedPrevItems = prevItems.map(p => {
+                    const found = snapshot.docs.find(f => f.id === p.id);
+                    return found ? { ...found.data(), id: found.id } as FeedItemType : p;
+                }).filter(p => !viewedReels.includes(p.id) || retryQuizzes.includes(p.id));
+
                 let nonQuizCountAtEnd = 0;
                 for (let i = updatedPrevItems.length - 1; i >= 0; i--) {
                     if (updatedPrevItems[i].type !== "quiz") nonQuizCountAtEnd++;
@@ -143,12 +169,17 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
 
                 const availableGeneral = general.filter(item => !prevItems.some(p => p.id === item.id));
                 const availableQuizzes = quizzes.filter(item => !prevItems.some(p => p.id === item.id));
+                const availableRetries = retryItemsRaw.filter(item => !prevItems.some(p => p.id === item.id));
                 const newItems: FeedItemType[] = [];
 
-                while (availableGeneral.length > 0 || availableQuizzes.length > 0) {
-                    const targetGap = Math.floor(Math.random() * 3) + 8;
-                    if (availableQuizzes.length > 0 && nonQuizCountAtEnd >= targetGap) {
-                        newItems.push(availableQuizzes.pop()!);
+                while (availableGeneral.length > 0 || availableQuizzes.length > 0 || availableRetries.length > 0) {
+                    const targetGap = Math.floor(Math.random() * 3) + 7;
+                    if (nonQuizCountAtEnd >= targetGap) {
+                        if (availableRetries.length > 0) {
+                            newItems.push(availableRetries.pop()!);
+                        } else if (availableQuizzes.length > 0) {
+                            newItems.push(availableQuizzes.pop()!);
+                        }
                         nonQuizCountAtEnd = 0;
                     } else if (availableGeneral.length > 0) {
                         newItems.push(availableGeneral.pop()!);

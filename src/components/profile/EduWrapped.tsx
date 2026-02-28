@@ -21,27 +21,54 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
     const [isDownloading, setIsDownloading] = useState(false);
     const [activeSlide, setActiveSlide] = useState(0);
 
+    const downloadAll = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!containerRef.current) return;
+
+        try {
+            setIsDownloading(true);
+            const originalSlide = activeSlide;
+
+            for (let i = 0; i < slides.length; i++) {
+                setActiveSlide(i);
+                // Wait for state update and animation
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const dataUrl = await toPng(containerRef.current, {
+                    pixelRatio: 4,
+                    backgroundColor: '#09090b',
+                });
+
+                const link = document.createElement('a');
+                link.download = `edu-wrapped-slide-${i + 1}.png`;
+                link.href = dataUrl;
+                link.click();
+            }
+
+            // Restore original slide
+            setActiveSlide(originalSlide);
+        } catch (err) {
+            console.error("Download All failed:", err);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     const downloadAsImage = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!containerRef.current) return;
 
         try {
             setIsDownloading(true);
-            // Wait a beat for any layout shifts
             await new Promise(resolve => setTimeout(resolve, 200));
 
-            // 4K resolution capture
-            // Standard 4K is 3840 x 2160. We'll use pixelRatio to achieve high quality.
             const dataUrl = await toPng(containerRef.current, {
-                pixelRatio: 4, // Increases resolution significantly for "4K" feel
-                backgroundColor: '#09090b', // zinc-950
-                style: {
-                    borderRadius: '0', // Optional: square corners for download
-                }
+                pixelRatio: 4,
+                backgroundColor: '#09090b',
             });
 
             const link = document.createElement('a');
-            link.download = `edu-wrapped-${activeSlide}.png`;
+            link.download = `edu-wrapped-slide-${activeSlide + 1}.png`;
             link.href = dataUrl;
             link.click();
         } catch (err) {
@@ -197,10 +224,18 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
                     <button
                         onClick={downloadAsImage}
                         disabled={isDownloading}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 mr-2 border border-zinc-700 disabled:opacity-50"
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-zinc-700 disabled:opacity-50"
                     >
                         {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                        4K PNG
+                        Slide
+                    </button>
+                    <button
+                        onClick={downloadAll}
+                        disabled={isDownloading}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-blue-500 disabled:opacity-50"
+                    >
+                        {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        Download All
                     </button>
                     {slides.map((_, i) => (
                         <button

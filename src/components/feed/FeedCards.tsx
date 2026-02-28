@@ -342,6 +342,19 @@ export const QuizCard = ({ item, userId }: Props) => {
         setAnswered(true);
 
         const isCorrect = index === quizItem.correctIndex;
+
+        // Track engagement for spaced repetition and scaling
+        fetch("/api/quiz-engagement", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId,
+                feedId: quizItem.id,
+                topic: quizItem.topic,
+                isCorrect
+            })
+        }).catch(err => console.error("Failed to track quiz engagement:", err));
+
         if (isCorrect && userId) {
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, { xp: increment(10) });
