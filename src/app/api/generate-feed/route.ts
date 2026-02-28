@@ -33,11 +33,12 @@ export async function POST(req: NextRequest) {
             includeMetadata: true
         });
 
-        // 3. Construct context from retrieved chunks and extract past summaries
+        // 3. Construct context from retrieved chunks and extract past summaries/avoided topics
         const matches = queryResponse.matches || [];
 
-        const documentChunks = matches.filter(m => m.metadata?.type !== 'generated_summary');
+        const documentChunks = matches.filter(m => m.metadata?.type !== 'generated_summary' && m.metadata?.type !== 'avoided_topic');
         const pastSummaryMatches = matches.filter(m => m.metadata?.type === 'generated_summary');
+        const avoidedTopicMatches = matches.filter(m => m.metadata?.type === 'avoided_topic');
 
         let context = "";
         if (documentChunks.length > 0) {
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
         }
 
         const pineconePreviousTopics = pastSummaryMatches.map(m => m.metadata?.text as string).filter(Boolean);
+        const pineconeAvoidedTopics = avoidedTopicMatches.map(m => m.metadata?.text as string).filter(Boolean);
 
         // 3.5 Query Firestore for recently generated topics to prevent duplication
         const feedsRef = collection(db, "feeds");
@@ -63,9 +65,10 @@ export async function POST(req: NextRequest) {
 
         // Combine Pinecone past summaries and Firestore previous topics
         const allPreviousTopics = [...new Set([...pineconePreviousTopics, ...firestorePreviousTopics])];
+        const allAvoidedTopics = [...new Set(pineconeAvoidedTopics)];
 
         // 4. Generate Content with Gemini Flash (faster for generated feeds)
-        const prompt = getGenerateFeedPrompt(context, expertiseLevel, allPreviousTopics);
+        const prompt = getGenerateFeedPrompt(context, expertiseLevel, allPreviousTopics, allAvoidedTopics);
 
         // Prepend system prompt to user prompt to avoid SDK type mismatches with systemInstruction
         const combinedPrompt = `${SYSTEM_PROMPT}\n\nTask:\n${prompt}`;

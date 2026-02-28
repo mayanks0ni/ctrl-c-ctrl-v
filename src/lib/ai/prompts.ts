@@ -11,7 +11,7 @@ The content should feel instantly gratifying while reinforcing real learning. Us
 You must ALWAYS respond with a JSON object containing an array of "items" that represents the user's learning feed.
 `;
 
-export const getGenerateFeedPrompt = (context: string, expertiseLevel: string = "intermediate", previousTopics: string[] = []) => {
+export const getGenerateFeedPrompt = (context: string, expertiseLevel: string = "intermediate", previousTopics: string[] = [], avoidedTopics: string[] = []) => {
   let deduplicationInstruction = "";
   if (previousTopics.length > 0) {
     deduplicationInstruction = `
@@ -22,9 +22,20 @@ ${previousTopics.map(t => `- ${t}`).join('\n')}
 Please explore new angles, different sub-topics, or entirely unseen concepts from the context provided below.`;
   }
 
+  let avoidedInstruction = "";
+  if (avoidedTopics.length > 0) {
+    avoidedInstruction = `
+CRITICAL RE-ENGAGEMENT RULE:
+The user recently SKIPPED or AVOIDED the following topics:
+${avoidedTopics.map(t => `- ${t}`).join('\n')}
+
+You MUST include at least 1-2 items covering these avoided topics, but present them in a highly captivating way (like a "visual_concept" analogy or an interactive "quiz") so they are forced to engage with it. Do NOT make it boring.`;
+  }
+
   return `
 Based on the provided academic text, generate a feed of EXACTLY 15-20 highly concise learning items.
 ${deduplicationInstruction}
+${avoidedInstruction}
 
 Context:
 ---

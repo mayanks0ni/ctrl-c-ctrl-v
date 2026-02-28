@@ -129,7 +129,7 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         return (
             <div className="h-full w-full flex items-center justify-center bg-black text-white text-center p-6">
                 <div>
-                    <h2 className="text-2xl font-bold mb-4">You're all caught up!</h2>
+                    <h2 className="text-2xl font-bold mb-4">You&apos;re all caught up!</h2>
                     <p className="text-zinc-400">Upload more materials to generate new content.</p>
                 </div>
             </div>
@@ -145,24 +145,17 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             <style jsx global>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
             {items.map((item, index) => {
-                // Calculate 75% threshold
                 const isTriggerElement = items.length > 5 && index === Math.floor(items.length * 0.75);
-
                 return (
-                    <div
+                    <FeedItemContainer
                         key={`${item.id}-${index}`}
-                        ref={isTriggerElement ? lastItemRef : null}
-                        className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black"
-                    >
-                        {item.type === "post" && <PostCard item={item} userId={userId} />}
-                        {item.type === "summary" && <SummaryCard item={item} userId={userId} />}
-                        {item.type === "visual_concept" && <VisualCard item={item} userId={userId} />}
-                        {item.type === "quiz" && <QuizCard item={item} userId={userId} />}
-                    </div>
+                        item={item}
+                        userId={userId}
+                        forwardRef={isTriggerElement ? lastItemRef : null}
+                    />
                 );
             })}
 
-            {/* Optional Loading Indicator At the Very End */}
             {isGenerating && (
                 <div className="h-[20dvh] w-full flex items-center justify-center bg-black snap-start">
                     <div className="flex flex-col items-center">
@@ -174,3 +167,62 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         </div>
     );
 }
+
+// --- Inner Component to track individual reel engagement ---
+const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, userId: string, forwardRef: React.Ref<HTMLDivElement> | ((instance: HTMLDivElement | null) => void) | null }) => {
+    const itemRef = useRef<HTMLDivElement>(null);
+    const startTimeRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const node = itemRef.current;
+        if (!node) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    startTimeRef.current = Date.now();
+                } else if (startTimeRef.current) {
+                    const durationMs = Date.now() - startTimeRef.current;
+                    startTimeRef.current = null;
+
+                    if (durationMs < 2500) {
+                        try {
+                            fetch("/api/track-engagement", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ userId, topic: item.topic, engagementType: "avoided", durationMs }),
+                                keepalive: true
+                            }).catch(e => console.error("Error sending engagement:", e));
+                        } catch (e) {
+                            console.error("Engagement tracking error:", e);
+                        }
+                    }
+                }
+            });
+        }, { threshold: 0.6 });
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [item.topic, userId]);
+
+    const setRefs = useCallback(
+        (node: HTMLDivElement | null) => {
+            itemRef.current = node;
+            if (typeof forwardRef === 'function') {
+                forwardRef(node);
+            } else if (forwardRef && 'current' in forwardRef) {
+                (forwardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            }
+        },
+        [forwardRef]
+    );
+
+    return (
+        <div ref={setRefs} className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black">
+            {item.type === "post" && <PostCard item={item} userId={userId} />}
+            {item.type === "summary" && <SummaryCard item={item} userId={userId} />}
+            {item.type === "visual_concept" && <VisualCard item={item} userId={userId} />}
+            {item.type === "quiz" && <QuizCard item={item} userId={userId} />}
+        </div>
+    );
+};
