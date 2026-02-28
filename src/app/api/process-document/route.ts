@@ -62,7 +62,10 @@ export async function POST(req: NextRequest) {
 
             const vectors = await Promise.all(
                 batch.map(async (chunk, chunkIdx) => {
-                    const embeddingResult = await embeddingModelSafe.embedContent(chunk);
+                    const embeddingResult = await embeddingModelSafe.embedContent({
+                        content: { role: "user", parts: [{ text: chunk }] },
+                        outputDimensionality: 768
+                    } as any);
                     const embedding = embeddingResult.embedding.values;
 
                     return {

@@ -16,7 +16,10 @@ export async function POST(req: NextRequest) {
         // 1. Generate query embedding for the subject
         // E.g., if subject is "Biology", we search for chunks related to Biology
         const queryTerm = subject || "general knowledge";
-        const embeddingResult = await embeddingModelSafe.embedContent(queryTerm);
+        const embeddingResult = await embeddingModelSafe.embedContent({
+            content: { role: "user", parts: [{ text: queryTerm }] },
+            outputDimensionality: 768
+        } as any);
         const queryEmbedding = embeddingResult.embedding.values;
 
         // 2. Query Pinecone for relevant chunks and past generated summaries
@@ -114,7 +117,10 @@ export async function POST(req: NextRequest) {
                 const summaryText = `Generated feed about ${subject || 'general knowledge'} for ${expertiseLevel} student. Topics covered: ${generatedTopics}`;
 
                 try {
-                    const embedResult = await embeddingModelSafe.embedContent(summaryText);
+                    const embedResult = await embeddingModelSafe.embedContent({
+                        content: { role: "user", parts: [{ text: summaryText }] },
+                        outputDimensionality: 768
+                    } as any);
                     const newEmbedding = embedResult.embedding.values;
 
                     await index.upsert({
