@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase/config";
 
 export async function POST(req: NextRequest) {
     try {
-        const { userId, topic, engagementType, durationMs } = await req.json();
+        const { userId, topic, engagementType, durationMs, feedId } = await req.json();
 
         if (!userId || !topic || !engagementType) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -38,6 +38,22 @@ export async function POST(req: NextRequest) {
 
             console.log(`[TRACKING] Avoided topic logged for User ${userId}: ${topic}`);
             return NextResponse.json({ success: true, message: "Avoided topic recorded" });
+        } else if (engagementType === "viewed") {
+            if (!feedId) {
+                return NextResponse.json({ error: "Missing feedId for viewed engagement" }, { status: 400 });
+            }
+
+            const { arrayUnion } = await import("firebase/firestore");
+            const userRef = doc(db, "users", userId);
+            await updateDoc(userRef, {
+                viewedReels: arrayUnion(feedId)
+            }).catch(async (e) => {
+                // If the field arrayUnion fails on fresh users without the field, we might need a fallback,
+                // but arrayUnion handles creating the array automatically.
+                console.error("Failed to update viewedReels:", e);
+                throw e;
+            });
+            return NextResponse.json({ success: true, message: "Viewed reel recorded" });
         }
 
         // Potential for future expansion: track highly 'engaged' topics

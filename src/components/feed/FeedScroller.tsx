@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { FeedItemType, PostCard, SummaryCard, VisualCard, QuizCard } from "./FeedCards";
+import FocusInterrupter from "./FocusInterrupter";
 import { Loader2 } from "lucide-react";
-import { collection, query, orderBy, onSnapshot, where } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, where, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 interface FeedScrollerProps {
@@ -17,62 +18,21 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     const [items, setItems] = useState<FeedItemType[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [hijackedSubject, setHijackedSubject] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const observerRef = useRef<IntersectionObserver | null>(null);
 
-    // 1. Subscribe to Firestore for feed items
-    useEffect(() => {
-        if (!userId) return;
-
-        let q = query(
-            collection(db, "feeds"),
-            orderBy("createdAt", "desc") // Show newest first or oldest first depending on preference
-        );
-
-        if (subject) {
-            q = query(
-                collection(db, "feeds"),
-                where("subject", "==", subject),
-                orderBy("createdAt", "desc")
-            );
-        } else {
-            // General feed
-            q = query(
-                collection(db, "feeds"),
-                orderBy("createdAt", "desc")
-            );
-        }
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const feedItems: FeedItemType[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                // Ensure type mapping matches FeedItemType
-                if (data.type) {
-                    feedItems.push({ ...data, id: doc.id } as FeedItemType);
-                }
-            });
-
-            setItems(feedItems);
-            setLoading(false);
-
-            // Initial generation if completely empty and not already generating
-            if (feedItems.length === 0 && !isGenerating) {
-                triggerGeneration();
-            }
-        });
-
-        return () => unsubscribe();
-    }, [userId, subject]);
+    // Dynamic subject selection based on intervention or props
+    const activeSubject = hijackedSubject || subject;
 
     // 2. Function to trigger background generation
-    const triggerGeneration = async () => {
+    const triggerGeneration = useCallback(async () => {
         if (isGenerating) return;
         setIsGenerating(true);
         try {
             // Pick a defined subject for generation. If "For You" (undefined subject) is active,
             // pick a random subject from the user's list. If they have none, fallback to "general knowledge".
-            let generateSubject = subject;
+            let generateSubject = activeSubject;
             let generateDifficulty = difficulty;
 
             if (!generateSubject) {
@@ -97,7 +57,123 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         } finally {
             setIsGenerating(false);
         }
-    };
+    }, [isGenerating, activeSubject, difficulty, userSubjects, userId]);
+
+    // Reset feed items when the active subject changes
+    useEffect(() => {
+        setItems([]);
+        setLoading(true);
+    }, [activeSubject]);
+
+    // 1. Subscribe to Firestore for user's viewed reels and feed items
+    useEffect(() => {
+        if (!userId) return;
+
+        // Listen for the user's viewedReels
+        let viewedReels: string[] = [];
+        const userUnsubscribe = onSnapshot(doc(db, "users", userId), (docSnap) => {
+            if (docSnap.exists()) {
+                viewedReels = docSnap.data()?.viewedReels || [];
+            }
+        });
+
+        let q = query(
+            collection(db, "feeds"),
+            orderBy("createdAt", "desc") // Fetch latest
+        );
+
+        if (activeSubject) {
+            q = query(
+                collection(db, "feeds"),
+                where("subject", "==", activeSubject),
+                orderBy("createdAt", "desc")
+            );
+        }
+
+        const feedsUnsubscribe = onSnapshot(q, (snapshot) => {
+            const feedItems: FeedItemType[] = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                // We only include items NOT in viewedReels to avoid repetition
+                if (data.type && !viewedReels.includes(doc.id)) {
+                    feedItems.push({ ...data, id: doc.id } as FeedItemType);
+                }
+            });
+
+            // 1. Separate feed items into Quizzes and General Content
+            const quizzes: FeedItemType[] = [];
+            const general: FeedItemType[] = [];
+
+            feedItems.forEach(item => {
+                if (item.type === "quiz") quizzes.push(item);
+                else general.push(item);
+            });
+
+            // 2. Fisher-Yates shuffle both independently
+            const shuffleArray = (arr: FeedItemType[]) => {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+            };
+            shuffleArray(quizzes);
+            shuffleArray(general);
+
+            setItems(prevItems => {
+                // Determine valid active prev items 
+                const updatedPrevItems = prevItems.map(p => feedItems.find(f => f.id === p.id) || p).filter(p => !viewedReels.includes(p.id));
+
+                // 3. Count how many general items we have consecutively at the tail of our existing feed stack
+                let nonQuizCountAtEnd = 0;
+                for (let i = updatedPrevItems.length - 1; i >= 0; i--) {
+                    if (updatedPrevItems[i].type !== "quiz") {
+                        nonQuizCountAtEnd++;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Filter out new items we already have in our list
+                const availableGeneral = general.filter(item => !prevItems.some(p => p.id === item.id));
+                const availableQuizzes = quizzes.filter(item => !prevItems.some(p => p.id === item.id));
+
+                const newItems: FeedItemType[] = [];
+
+                // 4. Inject items with spacing logic rules
+                while (availableGeneral.length > 0 || availableQuizzes.length > 0) {
+                    // Random target gap between 8 and 10
+                    const targetGap = Math.floor(Math.random() * 3) + 8; // Random 8, 9, or 10
+
+                    if (availableQuizzes.length > 0 && nonQuizCountAtEnd >= targetGap) {
+                        // Inject a quiz
+                        newItems.push(availableQuizzes.pop()!);
+                        nonQuizCountAtEnd = 0; // Reset counter after injecting quiz
+                    } else if (availableGeneral.length > 0) {
+                        // Inject general content
+                        newItems.push(availableGeneral.pop()!);
+                        nonQuizCountAtEnd++;
+                    } else {
+                        // No general content available, and we haven't hit the target gap for a quiz
+                        // We must stop adding new items and abandon the remaining quizzes until more general content generates
+                        break;
+                    }
+                }
+
+                return [...updatedPrevItems, ...newItems];
+            });
+            setLoading(false);
+
+            // Initial generation if completely empty and not already generating
+            if (feedItems.length === 0 && !isGenerating) {
+                triggerGeneration();
+            }
+        });
+
+        return () => {
+            userUnsubscribe();
+            feedsUnsubscribe();
+        };
+    }, [userId, activeSubject, isGenerating, triggerGeneration]);
 
     // 3. Track scroll position to trigger infinite generation
     const lastItemRef = useCallback((node: HTMLDivElement) => {
@@ -112,7 +188,7 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         });
 
         if (node) observerRef.current.observe(node);
-    }, [loading, isGenerating, userId, subject, difficulty]);
+    }, [loading, isGenerating, triggerGeneration]);
 
     if (loading) {
         return (
@@ -139,10 +215,19 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     return (
         <div
             ref={scrollRef}
-            className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar bg-black"
+            className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar bg-black relative"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
             <style jsx global>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+
+            {/* The active school-class intervention */}
+            <FocusInterrupter
+                userId={userId}
+                onIntervention={(hijackedSubject) => {
+                    setHijackedSubject(hijackedSubject);
+                    if (!isGenerating) triggerGeneration(); // Immediately trigger background generation for the hijacked class subject
+                }}
+            />
 
             {items.map((item, index) => {
                 const isTriggerElement = items.length > 5 && index === Math.floor(items.length * 0.75);
@@ -177,10 +262,28 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
         const node = itemRef.current;
         if (!node) return;
 
+        let hasLoggedView = false;
+
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     startTimeRef.current = Date.now();
+
+                    // Immediately log as 'viewed' so it doesn't repeat on future loads
+                    if (!hasLoggedView) {
+                        hasLoggedView = true;
+                        try {
+                            fetch("/api/track-engagement", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "viewed" }),
+                                keepalive: true
+                            }).catch(e => console.error("Error sending viewed engagement:", e));
+                        } catch (e) {
+                            console.error("View tracking error:", e);
+                        }
+                    }
+
                 } else if (startTimeRef.current) {
                     const durationMs = Date.now() - startTimeRef.current;
                     startTimeRef.current = null;
@@ -190,9 +293,9 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
                             fetch("/api/track-engagement", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ userId, topic: item.topic, engagementType: "avoided", durationMs }),
+                                body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "avoided", durationMs }),
                                 keepalive: true
-                            }).catch(e => console.error("Error sending engagement:", e));
+                            }).catch(e => console.error("Error sending avoided engagement:", e));
                         } catch (e) {
                             console.error("Engagement tracking error:", e);
                         }
@@ -203,7 +306,7 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
 
         observer.observe(node);
         return () => observer.disconnect();
-    }, [item.topic, userId]);
+    }, [item.topic, item.id, userId]);
 
     const setRefs = useCallback(
         (node: HTMLDivElement | null) => {
@@ -211,7 +314,7 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
             if (typeof forwardRef === 'function') {
                 forwardRef(node);
             } else if (forwardRef && 'current' in forwardRef) {
-                (forwardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                Object.assign(forwardRef, { current: node });
             }
         },
         [forwardRef]

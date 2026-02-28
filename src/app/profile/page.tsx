@@ -38,6 +38,7 @@ function ProfileContent() {
     const [fetchingLeaderboard, setFetchingLeaderboard] = useState(true);
 
     const [timetable, setTimetable] = useState<any>(null);
+    const [schedule, setSchedule] = useState<{ subject: string; day: string; startTime: string; endTime: string }[]>([]);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -78,6 +79,12 @@ function ProfileContent() {
                 const timetableSnap = await getDoc(doc(db, `users/${uidToFetch}/metadata`, "timetable"));
                 if (timetableSnap.exists()) {
                     setTimetable(timetableSnap.data());
+                }
+
+                // Fetch expanded schedule
+                const scheduleSnap = await getDoc(doc(db, `users/${uidToFetch}/metadata`, "schedule"));
+                if (scheduleSnap.exists()) {
+                    setSchedule(scheduleSnap.data().items || []);
                 }
 
                 // Only fetch private data if own profile
@@ -159,6 +166,20 @@ function ProfileContent() {
     const level = Math.floor(stats.xp / 100) + 1;
     const progressToNextLevel = stats.xp % 100;
     const isAlreadyComrade = stats.comrades?.includes(user?.uid || "") || comrades.some(c => c.uid === targetUid);
+
+    // Group the schedule linearly by day
+    const groupedSchedule = schedule.reduce((acc, item) => {
+        const day = item.day || "Unknown";
+        if (!acc[day]) acc[day] = [];
+        acc[day].push(item);
+        return acc;
+    }, {} as Record<string, typeof schedule>);
+
+    // Order days chronologically
+    const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const sortedDays = Object.keys(groupedSchedule).sort(
+        (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)
+    );
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white p-6 pb-24 relative overflow-hidden">
@@ -345,6 +366,32 @@ function ProfileContent() {
                                         Upload Now
                                     </Link>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Parsed Daily Breakdown List */}
+                        {schedule.length > 0 && (
+                            <div className="mt-4 space-y-4">
+                                {sortedDays.map(day => (
+                                    <div key={day} className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl p-5">
+                                        <h4 className="text-sm font-bold text-zinc-300 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2">{day}</h4>
+                                        <div className="space-y-2">
+                                            {groupedSchedule[day]
+                                                .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                                .map((item, i) => (
+                                                    <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 hover:bg-zinc-800/50 transition">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
+                                                            <p className="font-bold text-white text-sm">{item.subject}</p>
+                                                        </div>
+                                                        <p className="text-xs font-medium text-zinc-500 font-mono bg-zinc-900 px-2 py-1 rounded-lg">
+                                                            {item.startTime} - {item.endTime}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

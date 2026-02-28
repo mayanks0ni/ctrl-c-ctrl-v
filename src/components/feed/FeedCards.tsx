@@ -211,11 +211,6 @@ export const PostCard = ({ item, userId }: Props) => (
                 <div className="bg-white/10 backdrop-blur-md px-3 py-1 text-xs font-semibold rounded-full text-white uppercase tracking-wider">
                     Micro-Lesson
                 </div>
-                {item.authorId && (
-                    <Link href={`/profile?id=${item.authorId}`} className="bg-blue-500/20 backdrop-blur-md px-3 py-1 text-xs font-bold rounded-full text-blue-300 hover:bg-blue-500/40 transition">
-                        By {item.authorName || "Learner"}
-                    </Link>
-                )}
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">{(item as PostItem).hook}</h2>
             <p className="text-lg md:text-xl text-zinc-300 leading-relaxed font-medium">{(item as PostItem).content}</p>
@@ -246,12 +241,7 @@ export const SummaryCard = ({ item, userId }: Props) => {
                         className="absolute inset-0 bg-gradient-to-br from-blue-600 to-purple-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-2xl border border-white/10"
                     >
                         <BookOpen className="w-16 h-16 text-white/50 mb-6" />
-                        <h2 className="text-3xl font-bold text-white mb-2">{summaryItem.title}</h2>
-                        {item.authorId && (
-                            <Link href={`/profile?id=${item.authorId}`} onClick={(e: React.MouseEvent) => e.stopPropagation()} className="text-xs font-bold text-blue-200 mb-6 opacity-80 hover:opacity-100 hover:text-white transition">
-                                Created by {item.authorName || "Learner"}
-                            </Link>
-                        )}
+                        <h2 className="text-3xl font-bold text-white mb-6">{summaryItem.title}</h2>
                         <p className="text-blue-100/80 font-medium">Tap to reveal key takeaways</p>
                     </motion.div>
 
@@ -285,15 +275,10 @@ export const VisualCard = ({ item, userId }: Props) => (
     <div className="w-full h-full flex flex-col justify-end pb-24 px-6 bg-zinc-950 relative overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[120%] h-[120%] bg-purple-600/20 blur-[150px] rounded-full point-events-none" />
         <div className="relative z-10 max-w-[85%] bg-black/40 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400"><Lightbulb className="w-6 h-6" /></div>
                 <h2 className="text-2xl font-bold text-white">{(item as VisualItem).title}</h2>
             </div>
-            {item.authorId && (
-                <Link href={`/profile?id=${item.authorId}`} className="inline-block mb-6 text-xs font-bold text-purple-300 hover:text-purple-200 transition bg-purple-500/10 px-3 py-1 rounded-full">
-                    By {item.authorName || "Learner"}
-                </Link>
-            )}
             <blockquote className="text-2xl font-medium text-white mb-6 leading-relaxed border-l-4 border-purple-500 pl-6 italic">
                 &quot;{(item as VisualItem).analogy}&quot;
             </blockquote>
@@ -328,11 +313,6 @@ export const QuizCard = ({ item, userId }: Props) => {
                 <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-300 px-4 py-1.5 rounded-full flex items-center gap-2 font-bold text-sm tracking-wide">
                     <Zap className="w-4 h-4" /> KNOWLEDGE CHECK
                 </div>
-                {item.authorId && (
-                    <Link href={`/profile?id=${item.authorId}`} className="bg-zinc-800/80 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-zinc-300 hover:text-white transition border border-zinc-700">
-                        By {item.authorName || "Learner"}
-                    </Link>
-                )}
             </div>
 
             <div className="max-w-[90%] md:max-w-md w-full mx-auto relative z-10">

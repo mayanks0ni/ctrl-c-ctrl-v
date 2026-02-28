@@ -3,9 +3,6 @@
 import { useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRouter } from "next/navigation";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { doc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { storage, db } from "@/lib/firebase/config";
 import { motion, AnimatePresence } from "framer-motion";
 import { UploadCloud, FileText, Loader2, CheckCircle2, ChevronRight, AlertCircle, Calendar, ArrowLeft } from "lucide-react";
 
@@ -13,7 +10,6 @@ export default function TimetableUploadPage() {
     const { user, loading: authLoading } = useRequireAuth();
     const router = useRouter();
     const [file, setFile] = useState<File | null>(null);
-    const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState<"idle" | "uploading" | "analyzing" | "success" | "error">("idle");
     const [errorMessage, setErrorMessage] = useState("");
@@ -43,70 +39,61 @@ export default function TimetableUploadPage() {
     const handleUpload = async () => {
         if (!file || !user) return;
 
-        setUploading(true);
         setStatus("uploading");
+        setProgress(25); // Simulate file read progress
 
         try {
-            // 1. Upload to Firebase Storage
-            const storageRef = ref(storage, `users/${user.uid}/timetables/${Date.now()}_${file.name}`);
-            const uploadTask = uploadBytesResumable(storageRef, file);
+            const reader = new FileReader();
 
-            uploadTask.on(
-                "state_changed",
-                (snapshot) => {
-                    const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    setProgress(prog);
-                },
-                (error) => {
-                    console.error("Upload Error:", error);
-                    setStatus("error");
-                    setErrorMessage("Failed to upload file. Please try again.");
-                    setUploading(false);
-                },
-                async () => {
-                    try {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            reader.onload = async (e) => {
+                try {
+                    const dataUrl = e.target?.result as string;
+                    if (!dataUrl) throw new Error("Failed to read file.");
 
-                        // 2. Save snapshot in Firestore
-                        const timetableRef = doc(db, `users/${user.uid}/metadata`, "timetable");
-                        await setDoc(timetableRef, {
-                            fileName: file.name,
-                            fileUrl: downloadURL,
+                    // Strip out the data url prefix (e.g. data:image/png;base64,)
+                    const base64Data = dataUrl.split(",")[1];
+                    setProgress(50); // Read complete, starting analysis
+
+                    // 1. Send directly to Gemini backend bypass storage
+                    setStatus("analyzing");
+                    const analyzeRes = await fetch("/api/analyze-timetable", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userId: user.uid,
+                            base64Data,
                             fileType: file.type,
-                            uploadedAt: serverTimestamp(),
-                        });
+                            fileName: file.name
+                        })
+                    });
 
-                        // 3. Trigger Analysis
-                        setStatus("analyzing");
-                        const analyzeRes = await fetch("/api/analyze-timetable", {
-                            method: "POST",
-                            body: JSON.stringify({
-                                userId: user.uid,
-                                fileUrl: downloadURL,
-                                fileType: file.type
-                            })
-                        });
-
-                        if (!analyzeRes.ok) {
-                            throw new Error("Schedule analysis failed");
-                        }
-
-                        setStatus("success");
-                        setTimeout(() => router.push("/profile"), 2000);
-                    } catch (err) {
-                        console.error("Metadata Save Error:", err);
-                        setStatus("error");
-                        setErrorMessage("Failed to save timetable info.");
-                    } finally {
-                        setUploading(false);
+                    if (!analyzeRes.ok) {
+                        const errorRes = await analyzeRes.json();
+                        throw new Error(errorRes.error || "Schedule analysis failed");
                     }
+
+                    setProgress(100);
+                    setStatus("success");
+                    setTimeout(() => router.push("/profile"), 2000);
+                } catch (err) {
+                    const error = err as Error;
+                    console.error("Analysis Error:", error);
+                    setStatus("error");
+                    setErrorMessage(error.message || "Failed to analyze timetable.");
                 }
-            );
+            };
+
+            reader.onerror = () => {
+                setStatus("error");
+                setErrorMessage("Error reading the local file.");
+            };
+
+            reader.readAsDataURL(file);
+
         } catch (error) {
             console.error("General Upload Error:", error);
             setStatus("error");
             setErrorMessage("An unexpected error occurred.");
-            setUploading(false);
         }
     };
 
@@ -134,7 +121,7 @@ export default function TimetableUploadPage() {
 
                 <div className="text-center mb-10">
                     <h1 className="text-3xl font-bold mb-3 tracking-tight">Upload Timetable</h1>
-                    <p className="text-zinc-400">Share your schedule so your comrades know when you're free to study!</p>
+                    <p className="text-zinc-400">Share your schedule so your comrades know when you&apos;re free to study!</p>
                 </div>
 
                 {/* Upload Dropzone */}

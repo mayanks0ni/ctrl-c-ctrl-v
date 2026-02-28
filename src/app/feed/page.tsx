@@ -8,6 +8,32 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
+function getInitials(name: string) {
+    const words = name.trim().split(/\s+/);
+    if (words.length > 1) {
+        return (words[0][0] + (words[1]?.[0] || "")).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+function NavButton({ href, icon, initials, label, isActive, onClick }: { href?: string, icon?: React.ReactNode, initials?: string, label: string, isActive?: boolean, onClick?: () => void }) {
+    const inner = (
+        <div className={`group flex items-center rounded-full border backdrop-blur-md transition-colors duration-300 cursor-pointer overflow-hidden h-12 shadow-[0_0_15px_rgba(0,0,0,0.3)] ${isActive ? 'bg-white text-black border-white' : 'bg-zinc-800/80 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'}`}>
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center font-bold">
+                {icon || initials}
+            </div>
+            <div className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-[grid-template-columns] duration-300 ease-out">
+                <div className="overflow-hidden whitespace-nowrap">
+                    <span className="font-semibold pr-5 block opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75">{label}</span>
+                </div>
+            </div>
+        </div>
+    );
+
+    if (href) return <Link href={href} className="pointer-events-auto block w-fit">{inner}</Link>;
+    return <button onClick={onClick} className="pointer-events-auto block outline-none text-left w-fit">{inner}</button>;
+}
+
 interface SelectedSubject {
     name: string;
     difficulty: "beginner" | "intermediate" | "advanced";
@@ -24,9 +50,9 @@ export default function FeedPage() {
                 if (docSnap.exists() && docSnap.data().subjects) {
                     const rawSubjects = docSnap.data().subjects;
                     // Normalize subjects in case they are still strings from the old schema
-                    const normalizedSubjects = rawSubjects.map((s: any) => {
+                    const normalizedSubjects = rawSubjects.map((s: SelectedSubject | string) => {
                         if (typeof s === "string") {
-                            return { name: s, difficulty: "beginner" };
+                            return { name: s, difficulty: "beginner" } as SelectedSubject;
                         }
                         return s;
                     });
@@ -46,41 +72,33 @@ export default function FeedPage() {
 
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
-            {/* Top Navigation Overlay */}
-            <div className="absolute top-0 w-full z-50 pt-12 pb-4 px-6 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-                <div className="flex justify-between items-center pointer-events-auto max-w-lg mx-auto">
-                    {/* Profile & Upload */}
-                    <div className="flex items-center gap-2">
-                        <Link href="/profile" className="w-10 h-10 bg-zinc-800/80 rounded-full flex items-center justify-center border border-zinc-700 backdrop-blur-md text-white hover:bg-zinc-700 transition">
-                            <User className="w-5 h-5" />
-                        </Link>
-                        <Link href="/forum" className="w-10 h-10 bg-zinc-800/80 rounded-full flex items-center justify-center border border-zinc-700 backdrop-blur-md text-white hover:bg-zinc-700 transition">
-                            <Users className="w-5 h-5" />
-                        </Link>
-                    </div>
+            {/* Left Sidebar Navigation Overlay */}
+            <div className="absolute left-0 top-0 h-full z-50 pointer-events-none flex flex-col justify-center">
+                {/* Subtle gradient to ensure sidebar visibility over video content */}
+                <div className="absolute left-0 top-0 w-32 h-full bg-gradient-to-r from-black/80 to-transparent -z-10 pointer-events-none" />
 
-                    {/* Subject Switcher */}
-                    <div className="flex bg-zinc-900/50 backdrop-blur-md border border-white/10 rounded-full p-1 scroll-smooth overflow-x-auto no-scrollbar max-w-[70vw]">
-                        <button
-                            onClick={() => setActiveSubject(undefined)}
-                            className={`shrink-0 px-4 py-1.5 text-sm font-bold rounded-full whitespace-nowrap transition-all ${!activeSubject ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
-                        >
-                            For You
-                        </button>
-                        {subjects.map(subj => (
-                            <button
-                                key={subj.name}
-                                onClick={() => setActiveSubject(subj)}
-                                className={`shrink-0 px-4 py-1.5 text-sm font-bold rounded-full whitespace-nowrap transition-all ${activeSubject?.name === subj.name ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
-                            >
-                                {subj.name}
-                            </button>
-                        ))}
-                    </div>
+                <div className="flex flex-col justify-center gap-3 items-start pointer-events-auto max-h-full overflow-y-auto no-scrollbar py-8 pl-4 pr-12 w-fit">
+                    <NavButton href="/profile" icon={<User className="w-5 h-5" />} label="Profile" />
+                    <NavButton href="/forum" icon={<Users className="w-5 h-5" />} label="Forums" />
+                    <NavButton href="/upload" icon={<Plus className="w-5 h-5" />} label="Upload" />
 
-                    <Link href="/upload" className="w-10 h-10 bg-blue-600/80 rounded-full flex items-center justify-center border border-blue-500 backdrop-blur-md text-white hover:bg-blue-500 transition">
-                        <Plus className="w-5 h-5" />
-                    </Link>
+                    <div className="w-6 h-px bg-white/20 my-2 ml-3 shrink-0" />
+
+                    <NavButton
+                        isActive={!activeSubject}
+                        onClick={() => setActiveSubject(undefined)}
+                        initials="FY"
+                        label="For You"
+                    />
+                    {subjects.map(subj => (
+                        <NavButton
+                            key={subj.name}
+                            isActive={activeSubject?.name === subj.name}
+                            onClick={() => setActiveSubject(subj)}
+                            initials={getInitials(subj.name)}
+                            label={subj.name}
+                        />
+                    ))}
                 </div>
             </div>
 

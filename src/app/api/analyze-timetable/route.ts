@@ -5,16 +5,11 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export async function POST(req: NextRequest) {
     try {
-        const { userId, fileUrl, fileType } = await req.json();
+        const { userId, base64Data, fileType, fileName } = await req.json();
 
-        if (!userId || !fileUrl) {
-            return NextResponse.json({ error: "Missing userId or fileUrl" }, { status: 400 });
+        if (!userId || !base64Data) {
+            return NextResponse.json({ error: "Missing userId or base64Data" }, { status: 400 });
         }
-
-        // 1. Fetch the file content as an array buffer
-        const response = await fetch(fileUrl);
-        const buffer = await response.arrayBuffer();
-        const base64Data = Buffer.from(buffer).toString("base64");
 
         // 2. Construct the prompt for Gemini
         const prompt = `
@@ -57,7 +52,7 @@ export async function POST(req: NextRequest) {
         await setDoc(scheduleRef, {
             items: schedule,
             lastAnalyzed: serverTimestamp(),
-            sourceUrl: fileUrl
+            sourceName: fileName || "Direct Upload"
         });
 
         return NextResponse.json({ success: true, schedule });
