@@ -36,6 +36,7 @@ function ProfileContent() {
     const [loading, setLoading] = useState(true);
     const [leaderboard, setLeaderboard] = useState<{ id: string; displayName: string; xp: number }[]>([]);
     const [fetchingLeaderboard, setFetchingLeaderboard] = useState(true);
+    const [leaderboardView, setLeaderboardView] = useState<'global' | 'comrades'>('global');
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -356,27 +357,67 @@ function ProfileContent() {
                 {/* Right Column: Global Leaderboard */}
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5 xl:col-span-4 flex flex-col">
                     <div className="sticky top-6 bg-zinc-900/40 border border-zinc-800/50 rounded-[2rem] p-6 backdrop-blur-xl shadow-2xl flex-col flex h-fit max-h-[calc(100vh-3rem)]">
-                        <div className="flex items-center gap-3 mb-6 shrink-0">
-                            <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-yellow-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 rotate-3">
-                                <Trophy className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-white tracking-tight">Top Learners</h3>
-                                <p className="text-sm text-zinc-400 font-medium">Global Rankings</p>
+                        <div className="flex items-center gap-3 mb-6 shrink-0 justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-yellow-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 rotate-3">
+                                    <Trophy className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-white tracking-tight">Top Learners</h3>
+                                    <p className="text-sm text-zinc-400 font-medium">{leaderboardView === 'global' ? 'Global Rankings' : 'Comrades Rankings'}</p>
+                                </div>
                             </div>
                         </div>
 
+                        {/* Toggle */}
+                        <div className="flex bg-zinc-900/50 p-1 rounded-xl mb-6 shrink-0 relative">
+                            <motion.div
+                                className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-zinc-800 rounded-lg border border-zinc-700 shadow-sm"
+                                animate={{ x: leaderboardView === 'global' ? '0%' : '100%', left: leaderboardView === 'global' ? '4px' : '-4px' }}
+                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                            />
+                            <button
+                                onClick={() => setLeaderboardView('global')}
+                                className={`flex-1 py-1.5 text-sm font-bold z-10 transition-colors ${leaderboardView === 'global' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                Global
+                            </button>
+                            <button
+                                onClick={() => setLeaderboardView('comrades')}
+                                className={`flex-1 py-1.5 text-sm font-bold z-10 transition-colors ${leaderboardView === 'comrades' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                Comrades
+                            </button>
+                        </div>
+
                         <div className="space-y-3 overflow-y-auto pr-2 pb-2 custom-scrollbar">
-                            {fetchingLeaderboard ? (
+                            {fetchingLeaderboard && leaderboardView === 'global' ? (
                                 <div className="bg-zinc-800/20 border border-zinc-800/50 rounded-2xl p-8 flex justify-center items-center">
                                     <Loader2 className="w-8 h-8 text-zinc-500 animate-spin" />
                                 </div>
-                            ) : leaderboard.length === 0 ? (
-                                <div className="bg-zinc-800/20 border border-zinc-800/50 rounded-2xl p-6 text-center text-zinc-500">
-                                    No leaderboard data available.
-                                </div>
-                            ) : (
-                                leaderboard.map((userStats, index) => {
+                            ) : (() => {
+                                let displayedLeaderboard = leaderboard;
+
+                                if (leaderboardView === 'comrades') {
+                                    if (!stats) return <div className="text-center text-sm text-zinc-500 p-4">Loading stats...</div>;
+
+                                    const allComradesRankings = [
+                                        { id: user!.uid, displayName: stats.displayName, xp: stats.xp },
+                                        ...comrades.map(c => ({ id: c.uid, displayName: c.displayName || 'Learner', xp: c.xp || 0 }))
+                                    ];
+
+                                    displayedLeaderboard = allComradesRankings.sort((a, b) => b.xp - a.xp);
+                                }
+
+                                if (displayedLeaderboard.length === 0) {
+                                    return (
+                                        <div className="bg-zinc-800/20 border border-zinc-800/50 rounded-2xl p-6 text-center text-zinc-500">
+                                            {leaderboardView === 'global' ? "No leaderboard data available." : "Add some comrades in the forum to see how you stack up!"}
+                                        </div>
+                                    );
+                                }
+
+                                return displayedLeaderboard.map((userStats, index) => {
                                     const isCurrentUser = userStats.id === user?.uid;
                                     const levelCalculated = Math.floor(userStats.xp / 100) + 1;
 
@@ -439,7 +480,7 @@ function ProfileContent() {
                                         </motion.div>
                                     );
                                 })
-                            )}
+                            })()}
                         </div>
                     </div>
                 </motion.div>
