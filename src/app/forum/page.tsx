@@ -68,7 +68,7 @@ export default function ForumPage() {
         }
     }, [user]);
 
-    // Listen to Posts
+    // Listen to Posts - use stable merge to avoid re-mounting the entire list on votes
     useEffect(() => {
         const q = query(
             collection(db, "forumPosts"),
@@ -81,8 +81,33 @@ export default function ForumPage() {
                 ...doc.data()
             })) as Post[];
 
-            // Filter client-side for MVP
-            setPosts(postsData.filter(p => p.subject === activeSubject));
+            const filtered = postsData.filter(p => p.subject === activeSubject);
+
+            // Merge: only update the posts that actually changed, preserving array identity
+            // for unchanged items to avoid list remounting
+            setPosts(prev => {
+                const prevMap = new Map(prev.map(p => [p.id, p]));
+                const merged = filtered.map(p => {
+                    const existing = prevMap.get(p.id);
+                    if (!existing) return p;
+                    // Only replace if something relevant changed
+                    if (
+                        existing.upvotes !== p.upvotes ||
+                        existing.downvotes !== p.downvotes ||
+                        existing.replyCount !== p.replyCount ||
+                        existing.text !== p.text ||
+                        JSON.stringify(existing.votedBy) !== JSON.stringify(p.votedBy)
+                    ) {
+                        return p;
+                    }
+                    return existing; // reuse same object ref to prevent re-render
+                });
+                // Detect if anything actually changed before calling setState
+                if (merged.length === prev.length && merged.every((p, i) => p === prev[i])) {
+                    return prev;
+                }
+                return merged;
+            });
         });
 
         return () => unsubscribe();
