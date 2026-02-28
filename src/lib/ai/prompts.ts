@@ -70,12 +70,14 @@ interface SummaryItem extends BaseItem {
   type: "summary";
   title: string;
   points: string[]; // 3-4 bullet points
+  imageQuery: string; // A descriptive 2-3 word search query for a relevant background image (e.g., "stacked books", "classroom")
 }
 
 interface PostItem extends BaseItem {
   type: "post";
   hook: string; // Catchy first sentence
   content: string; // Main body (2-3 sentences)
+  imageQuery: string; // A highly descriptive 2-3 word search query for a relevant background image (e.g., "vintage library", "dna helix")
 }
 
 interface VisualItem extends BaseItem {
@@ -83,6 +85,7 @@ interface VisualItem extends BaseItem {
   title: string;
   analogy: string; // The metaphor / analogy
   explanation: string; // How it connects to the real concept
+  imageQuery: string; // A highly descriptive 2-3 word search query for a relevant background image (e.g., "rocket launch", "flowing river")
 }
 
 interface QuizItem extends BaseItem {
@@ -91,6 +94,7 @@ interface QuizItem extends BaseItem {
   options: string[]; // Exactly 4 options
   correctIndex: number; // 0-3
   explanation: string; // Why the answer is correct
+  imageQuery: string; // A descriptive 2-3 word search query for a relevant background image (e.g., "brain thinking", "laboratory")
 }
 
 Ensure the JSON is valid and contains no markdown code block formatting (just the raw JSON string).

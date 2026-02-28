@@ -49,7 +49,6 @@ export default function FeedPage() {
             getDoc(doc(db, "users", user.uid)).then(docSnap => {
                 if (docSnap.exists() && docSnap.data().subjects) {
                     const rawSubjects = docSnap.data().subjects;
-                    // Normalize subjects in case they are still strings from the old schema
                     const normalizedSubjects = rawSubjects.map((s: SelectedSubject | string) => {
                         if (typeof s === "string") {
                             return { name: s, difficulty: "beginner" } as SelectedSubject;
@@ -74,7 +73,6 @@ export default function FeedPage() {
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
             {/* Left Sidebar Navigation Overlay */}
             <div className="absolute left-0 top-0 h-full z-50 pointer-events-none flex flex-col justify-center">
-                {/* Subtle gradient to ensure sidebar visibility over video content */}
                 <div className="absolute left-0 top-0 w-32 h-full bg-gradient-to-r from-black/80 to-transparent -z-10 pointer-events-none" />
 
                 <div className="flex flex-col justify-center gap-3 items-start pointer-events-auto max-h-full overflow-y-auto no-scrollbar py-8 pl-4 pr-12 w-fit">
@@ -102,7 +100,6 @@ export default function FeedPage() {
                 </div>
             </div>
 
-            {/* The Scroller */}
             <FeedScroller userId={user.uid} subject={activeSubject?.name} difficulty={activeSubject?.difficulty} />
         </div>
     );
