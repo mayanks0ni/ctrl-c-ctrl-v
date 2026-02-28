@@ -6,6 +6,7 @@ import FocusInterrupter from "./FocusInterrupter";
 import { Loader2 } from "lucide-react";
 import { collection, query, orderBy, onSnapshot, where, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { useInteractionTracker } from "@/hooks/useInteractionTracker";
 
 interface FeedScrollerProps {
     userId: string;
@@ -232,11 +233,12 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             {items.map((item, index) => {
                 const isTriggerElement = items.length > 5 && index === Math.floor(items.length * 0.75);
                 return (
-                    <FeedItemContainer
+                    <FeedItemWrapper
                         key={`${item.id}-${index}`}
                         item={item}
                         userId={userId}
-                        forwardRef={isTriggerElement ? lastItemRef : null}
+                        isTriggerElement={isTriggerElement}
+                        lastItemRef={lastItemRef}
                     />
                 );
             })}
@@ -253,13 +255,14 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     );
 }
 
-// --- Inner Component to track individual reel engagement ---
-const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, userId: string, forwardRef: React.Ref<HTMLDivElement> | ((instance: HTMLDivElement | null) => void) | null }) => {
-    const itemRef = useRef<HTMLDivElement>(null);
+function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef }: { item: FeedItemType, userId: string, isTriggerElement: boolean, lastItemRef: (node: HTMLDivElement) => void }) {
+    const cardRef = useRef<HTMLDivElement>(null);
+    const { startView, endView } = useInteractionTracker(userId);
+    const viewTracked = useRef(false);
     const startTimeRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const node = itemRef.current;
+        const node = cardRef.current;
         if (!node) return;
 
         let hasLoggedView = false;
@@ -267,37 +270,38 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
+                    // Start local Edu Wrapped tracking
+                    startView(item.id);
                     startTimeRef.current = Date.now();
+                    viewTracked.current = true;
 
-                    // Immediately log as 'viewed' so it doesn't repeat on future loads
+                    // Call remote engagement API for 'viewed' (updates viewedReels)
                     if (!hasLoggedView) {
                         hasLoggedView = true;
-                        try {
-                            fetch("/api/track-engagement", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "viewed" }),
-                                keepalive: true
-                            }).catch(e => console.error("Error sending viewed engagement:", e));
-                        } catch (e) {
-                            console.error("View tracking error:", e);
-                        }
+                        fetch("/api/track-engagement", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "viewed" }),
+                            keepalive: true
+                        }).catch(e => console.error("Error sending viewed engagement:", e));
                     }
+                } else if (viewTracked.current) {
+                    // End local Edu Wrapped tracking
+                    endView(item.id, (item as any).subject);
+                    viewTracked.current = false;
 
-                } else if (startTimeRef.current) {
-                    const durationMs = Date.now() - startTimeRef.current;
-                    startTimeRef.current = null;
+                    // Handle 'avoided' tracking for remote API if duration is short
+                    if (startTimeRef.current) {
+                        const durationMs = Date.now() - startTimeRef.current;
+                        startTimeRef.current = null;
 
-                    if (durationMs < 2500) {
-                        try {
+                        if (durationMs < 2500) {
                             fetch("/api/track-engagement", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ userId, feedId: item.id, topic: item.topic, engagementType: "avoided", durationMs }),
                                 keepalive: true
                             }).catch(e => console.error("Error sending avoided engagement:", e));
-                        } catch (e) {
-                            console.error("Engagement tracking error:", e);
                         }
                     }
                 }
@@ -306,26 +310,22 @@ const FeedItemContainer = ({ item, userId, forwardRef }: { item: FeedItemType, u
 
         observer.observe(node);
         return () => observer.disconnect();
-    }, [item.topic, item.id, userId]);
-
-    const setRefs = useCallback(
-        (node: HTMLDivElement | null) => {
-            itemRef.current = node;
-            if (typeof forwardRef === 'function') {
-                forwardRef(node);
-            } else if (forwardRef && 'current' in forwardRef) {
-                Object.assign(forwardRef, { current: node });
-            }
-        },
-        [forwardRef]
-    );
+    }, [item.id, item.topic, userId, startView, endView]);
 
     return (
-        <div ref={setRefs} className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black">
+        <div
+            ref={(node) => {
+                // Combine refs
+                (cardRef as any).current = node;
+                if (isTriggerElement && node) lastItemRef(node);
+            }}
+            className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black"
+        >
             {item.type === "post" && <PostCard item={item} userId={userId} />}
             {item.type === "summary" && <SummaryCard item={item} userId={userId} />}
             {item.type === "visual_concept" && <VisualCard item={item} userId={userId} />}
             {item.type === "quiz" && <QuizCard item={item} userId={userId} />}
         </div>
     );
-};
+}
+

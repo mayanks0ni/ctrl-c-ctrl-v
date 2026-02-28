@@ -10,6 +10,7 @@ import { Loader2, Zap, Flame, Trophy, LogOut, FileText, ArrowLeft, UserPlus, Che
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPendingRequests, getComrades, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, FriendRequest } from "@/lib/social";
+import EduWrapped from "@/components/profile/EduWrapped";
 
 interface UserStats {
     uid: string;
@@ -155,7 +156,7 @@ function ProfileContent() {
         setPendingRequests(prev => prev.filter(r => r.id !== requestId));
     };
 
-    if (authLoading || loading || !stats) {
+    if (authLoading || loading || !stats || !user) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-zinc-950">
                 <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
@@ -262,6 +263,16 @@ function ProfileContent() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Edu Wrapped Section */}
+                    {isOwnProfile && stats && (
+                        <EduWrapped
+                            userId={user.uid}
+                            xp={stats.xp}
+                            subjects={stats.subjects}
+                            comrades={comrades}
+                        />
+                    )}
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 gap-4 mb-8">
@@ -538,8 +549,8 @@ function ProfileContent() {
                         );
 
                         // Comrades Data
-                        const comradesRankings = stats ? [
-                            { id: user!.uid, displayName: stats.displayName, xp: stats.xp },
+                        const comradesRankings = (stats && user) ? [
+                            { id: user.uid, displayName: stats.displayName, xp: stats.xp },
                             ...comrades.map(c => ({ id: c.uid, displayName: c.displayName || 'Learner', xp: c.xp || 0 }))
                         ].sort((a, b) => b.xp - a.xp) : [];
 
