@@ -117,17 +117,19 @@ export async function POST(req: NextRequest) {
                     const embedResult = await embeddingModelSafe.embedContent(summaryText);
                     const newEmbedding = embedResult.embedding.values;
 
-                    await index.upsert([{
-                        id: `summary-${userId}-${Date.now()}`,
-                        values: newEmbedding,
-                        metadata: {
-                            userId,
-                            subject: subject || 'general knowledge',
-                            type: 'generated_summary',
-                            text: summaryText,
-                            timestamp: Date.now()
-                        }
-                    }] as any);
+                    await index.upsert({
+                        records: [{
+                            id: `summary-${userId}-${Date.now()}`,
+                            values: newEmbedding,
+                            metadata: {
+                                userId,
+                                subject: subject || 'general knowledge',
+                                type: 'generated_summary',
+                                text: summaryText,
+                                timestamp: Date.now()
+                            }
+                        }]
+                    });
                     console.log(`[GENERATE_FEED] Upserted summary to Pinecone for ${subject}: ${summaryText}`);
                 } catch (pineconeErr) {
                     console.error("[GENERATE_FEED] Failed to upsert summary to Pinecone:", pineconeErr);

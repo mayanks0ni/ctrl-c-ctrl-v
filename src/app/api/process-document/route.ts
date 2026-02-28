@@ -80,9 +80,7 @@ export async function POST(req: NextRequest) {
 
             if (vectors.length > 0) {
                 console.log(`[PROCESS_DOC] Upserting batch of ${vectors.length} vectors to Pinecone...`);
-                // The new official Pinecone SDK expects { records: [...] } or just an array in some versions.
-                // Looking at the TS error: `Property 'records' is missing in type '[...]' but required in type 'UpsertOptions<RecordMetadata>'`
-                await index.upsert(vectors as any); // fallback if exact signature varies
+                await index.upsert({ records: vectors });
             }
         }
         console.log(`[PROCESS_DOC] Finished vector upsert.`);
