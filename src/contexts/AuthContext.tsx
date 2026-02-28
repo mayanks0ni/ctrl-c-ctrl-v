@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/config";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import TimetableMonitor from "@/components/timetable/TimetableMonitor";
 
 interface AuthContextType {
     user: User | null;
@@ -65,6 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return (
         <AuthContext.Provider value={{ user, userData, loading }}>
             {children}
+            {user && <TimetableMonitor userId={user.uid} />}
         </AuthContext.Provider>
     );
 };

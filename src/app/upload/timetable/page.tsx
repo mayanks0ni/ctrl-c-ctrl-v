@@ -15,7 +15,7 @@ export default function TimetableUploadPage() {
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+    const [status, setStatus] = useState<"idle" | "uploading" | "analyzing" | "success" | "error">("idle");
     const [errorMessage, setErrorMessage] = useState("");
 
     if (authLoading || !user) {
@@ -67,9 +67,7 @@ export default function TimetableUploadPage() {
                     try {
                         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
-                        // 2. Save/Update timetable info in Firestore
-                        // We'll keep a reference to the latest timetable directly in the user document 
-                        // or in a specific doc to make it easy to find.
+                        // 2. Save snapshot in Firestore
                         const timetableRef = doc(db, `users/${user.uid}/metadata`, "timetable");
                         await setDoc(timetableRef, {
                             fileName: file.name,
@@ -77,6 +75,21 @@ export default function TimetableUploadPage() {
                             fileType: file.type,
                             uploadedAt: serverTimestamp(),
                         });
+
+                        // 3. Trigger Analysis
+                        setStatus("analyzing");
+                        const analyzeRes = await fetch("/api/analyze-timetable", {
+                            method: "POST",
+                            body: JSON.stringify({
+                                userId: user.uid,
+                                fileUrl: downloadURL,
+                                fileType: file.type
+                            })
+                        });
+
+                        if (!analyzeRes.ok) {
+                            throw new Error("Schedule analysis failed");
+                        }
 
                         setStatus("success");
                         setTimeout(() => router.push("/profile"), 2000);
@@ -171,11 +184,19 @@ export default function TimetableUploadPage() {
                         </motion.div>
                     )}
 
+                    {status === "analyzing" && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="mt-8 bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6 text-center">
+                            <Loader2 className="w-10 h-10 text-blue-400 mx-auto mb-3 animate-spin" />
+                            <p className="font-bold text-white text-lg">Analyzing Schedule...</p>
+                            <p className="text-sm text-zinc-400">Gemini is extracting your class timings...</p>
+                        </motion.div>
+                    )}
+
                     {status === "success" && (
                         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mt-8 bg-green-500/10 border border-green-500/20 rounded-2xl p-6 text-center">
                             <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-3" />
-                            <p className="font-bold text-white text-lg">Timetable Shared!</p>
-                            <p className="text-sm text-zinc-400">Returning to your profile...</p>
+                            <p className="font-bold text-white text-lg">Schedule Synced!</p>
+                            <p className="text-sm text-zinc-400">Interventions active. Returning to profile...</p>
                         </motion.div>
                     )}
 
