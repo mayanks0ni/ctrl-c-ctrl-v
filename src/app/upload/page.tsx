@@ -105,7 +105,7 @@ export default function UploadPage() {
     };
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 relative">
+        <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 lg:pl-24 relative">
             <div className="absolute top-0 w-full h-96 bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none" />
 
             <motion.div

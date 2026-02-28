@@ -199,7 +199,7 @@ function ProfileContent() {
     );
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white p-6 pb-24 relative overflow-hidden">
+        <div className="min-h-screen bg-zinc-950 text-white p-6 lg:pl-24 pb-24 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/20 blur-[100px] rounded-full" />
             <div className="absolute top-40 left-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full" />
 

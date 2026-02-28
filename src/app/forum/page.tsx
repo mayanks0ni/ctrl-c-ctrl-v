@@ -287,7 +287,7 @@ export default function ForumPage() {
             <div className="fixed top-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[120px] rounded-full point-events-none" />
 
             {/* Header */}
-            <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-zinc-800 p-4">
+            <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-zinc-800 p-4 lg:pl-24">
                 <div className="max-w-3xl mx-auto flex items-center gap-4">
                     <button
                         onClick={() => activeThreadId ? setActiveThreadId(null) : router.push("/feed")}
@@ -321,7 +321,7 @@ export default function ForumPage() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 max-w-3xl w-full mx-auto p-4 pb-32 space-y-4 overflow-y-auto">
+            <div className="flex-1 max-w-3xl w-full mx-auto p-4 lg:pl-24 pb-32 space-y-4 overflow-y-auto">
                 <AnimatePresence mode="wait">
                     {!activeThreadId ? (
                         <motion.div
