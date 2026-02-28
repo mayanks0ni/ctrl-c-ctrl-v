@@ -15,9 +15,10 @@ interface FeedScrollerProps {
     subject?: string;
     difficulty?: string;
     userSubjects?: { name: string, difficulty: string }[];
+    quizOnly?: boolean;
 }
 
-export default function FeedScroller({ userId, subject, difficulty, userSubjects = [] }: FeedScrollerProps) {
+export default function FeedScroller({ userId, subject, difficulty, userSubjects = [], quizOnly = false }: FeedScrollerProps) {
     const [items, setItems] = useState<FeedItemType[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -76,7 +77,7 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
     useEffect(() => {
         setItems([]);
         setLoading(true);
-    }, [activeSubject]);
+    }, [activeSubject, quizOnly]);
 
     // 1. Subscribe to Firestore
     useEffect(() => {
@@ -99,11 +100,23 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             snapshot.forEach((doc) => {
                 const data = doc.data();
                 if (data.type && !viewedReels.includes(doc.id)) {
+                    // Filter by quiz only if needed
+                    if (quizOnly && data.type !== "quiz") return;
                     feedItems.push({ ...data, id: doc.id } as FeedItemType);
                 }
             });
 
-            // Injection spacing logic preserved from HEAD
+            if (quizOnly) {
+                setItems(prevItems => {
+                    const availableQuizzes = feedItems.filter(item => !prevItems.some(p => p.id === item.id));
+                    return [...prevItems, ...availableQuizzes];
+                });
+                setLoading(false);
+                if (feedItems.length === 0 && !isGenerating) triggerGeneration();
+                return;
+            }
+
+            // Injection spacing logic for mixed feed
             const quizzes: FeedItemType[] = [];
             const general: FeedItemType[] = [];
             feedItems.forEach(item => {
