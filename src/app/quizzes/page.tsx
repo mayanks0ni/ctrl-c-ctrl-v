@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { Loader2, Brain, Zap, ArrowRight, ChevronDown } from "lucide-react";
+import { Loader2, HelpCircle, Zap, ArrowRight, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FeedScroller from "@/components/feed/FeedScroller";
 import { motion, AnimatePresence } from "framer-motion";
@@ -82,7 +82,7 @@ function QuizContent() {
             >
                 <div className="text-center mb-10">
                     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/20">
-                        <Brain className="w-10 h-10 text-white" />
+                        <HelpCircle className="w-10 h-10 text-white" />
                     </div>
                     <h1 className="text-4xl font-black mb-3 bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
                         Quiz Mode
@@ -120,8 +120,8 @@ function QuizContent() {
                                     key={d}
                                     onClick={() => setSelectedDifficulty(d)}
                                     className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${selectedDifficulty === d
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20'
-                                            : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20'
+                                        : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
                                         }`}
                                 >
                                     {d}

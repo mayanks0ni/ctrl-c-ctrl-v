@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, Brain, NotebookPen, Zap, Loader2 } from "lucide-react";
+import { User, HelpCircle, NotebookPen, Zap, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface SelectedSubject {
@@ -67,7 +67,7 @@ export default function Sidebar() {
                 />
                 <NavButton
                     href="/quizzes"
-                    icon={<Brain className="w-5 h-5" />}
+                    icon={<HelpCircle className="w-5 h-5" />}
                     label="Quizzes"
                     isActive={pathname === "/quizzes"}
                 />
