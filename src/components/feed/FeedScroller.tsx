@@ -154,7 +154,20 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             q = query(collection(db, "feeds"), where("subject", "==", activeSubject), orderBy("createdAt", "desc"));
         }
 
+        let isFirstSnapshot = true;
+
         const feedsUnsubscribe = onSnapshot(q, async (snapshot) => {
+            // Check if this is just a metadata update (upvotes/comments)
+            // If so, skip setItems entirely — EngagementBar uses optimistic local state
+            const changes = snapshot.docChanges();
+            const hasStructuralChanges = isFirstSnapshot || changes.some(c => c.type === 'added' || c.type === 'removed');
+            isFirstSnapshot = false;
+
+            if (!hasStructuralChanges) {
+                // Pure metadata update (upvote/comment) — do nothing to the feed list
+                return;
+            }
+
             // Build a map of all current snapshot items for fast lookup
             const snapshotMap = new Map<string, FeedItemType>();
             const retryItemsRaw: FeedItemType[] = [];
@@ -173,13 +186,8 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
             });
 
             setItems(prevItems => {
-                // 1. Update existing items in-place (metadata like upvotes/comments)
-                //    and filter out viewed items. Preserve order completely.
+                // 1. Keep existing items in their current order, just filter out viewed ones
                 const updatedPrevItems = prevItems
-                    .map(p => {
-                        const fresh = snapshotMap.get(p.id) || retryItemsRaw.find(r => r.id === p.id);
-                        return fresh ? { ...fresh } : p;
-                    })
                     .filter(p => !viewedReels.includes(p.id) || retryQuizzes.includes(p.id));
 
                 // 2. Find genuinely NEW items not already in the list
@@ -187,9 +195,9 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
                 const newFeedItems = Array.from(snapshotMap.values()).filter(item => !existingIds.has(item.id));
                 const newRetryItems = retryItemsRaw.filter(item => !existingIds.has(item.id));
 
-                // 3. If no new items, just return the in-place updated list (no scroll disruption)
+                // 3. If no new items, return the existing list unchanged
                 if (newFeedItems.length === 0 && newRetryItems.length === 0) {
-                    return updatedPrevItems;
+                    return prevItems; // Return exact same reference — no re-render
                 }
 
                 // 4. Only run shuffle + injection for genuinely new items
