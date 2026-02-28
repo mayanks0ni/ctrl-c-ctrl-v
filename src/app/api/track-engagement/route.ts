@@ -44,12 +44,12 @@ export async function POST(req: NextRequest) {
             }
 
             const { arrayUnion } = await import("firebase/firestore");
+            const { setDoc } = await import("firebase/firestore");
             const userRef = doc(db, "users", userId);
-            await updateDoc(userRef, {
+
+            await setDoc(userRef, {
                 viewedReels: arrayUnion(feedId)
-            }).catch(async (e) => {
-                // If the field arrayUnion fails on fresh users without the field, we might need a fallback,
-                // but arrayUnion handles creating the array automatically.
+            }, { merge: true }).catch(async (e) => {
                 console.error("Failed to update viewedReels:", e);
                 throw e;
             });

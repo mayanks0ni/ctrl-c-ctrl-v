@@ -164,32 +164,45 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
                     {slides.map((_, i) => (
                         <button
                             key={i}
-                            onClick={() => setActiveSlide(i)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveSlide(i);
+                            }}
                             className={`w-2 h-2 rounded-full transition-all ${activeSlide === i ? 'bg-white w-6' : 'bg-zinc-700'}`}
                         />
                     ))}
                 </div>
             </div>
 
-            <div className="relative overflow-hidden bg-zinc-900/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] min-h-[400px]">
-                <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800">
-                    <motion.div
-                        initial={{ width: "0%" }}
-                        animate={{ width: "100%" }}
-                        key={activeSlide}
-                        transition={{ duration: 5, ease: "linear" }}
-                        onAnimationComplete={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
-                        className="h-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                    />
+            <div
+                onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
+                className="relative overflow-hidden bg-zinc-900/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] min-h-[400px] cursor-pointer group hover:bg-zinc-900/60 transition-colors"
+            >
+                {/* Segmented Progress Bar */}
+                <div className="absolute top-4 left-6 right-6 flex gap-2 z-20">
+                    {slides.map((_, i) => (
+                        <div key={i} className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={false}
+                                animate={{
+                                    width: activeSlide === i ? "100%" : (i < activeSlide ? "100%" : "0%"),
+                                    opacity: i <= activeSlide ? 1 : 0.3
+                                }}
+                                transition={{ duration: 0.3 }}
+                                className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                            />
+                        </div>
+                    ))}
                 </div>
 
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeSlide}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.05 }}
-                        className="p-10 h-full flex flex-col justify-between"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className="p-10 pt-16 h-full flex flex-col justify-between"
                     >
                         <div className="flex items-center gap-4 mb-8">
                             <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -208,7 +221,10 @@ export default function EduWrapped({ userId, xp, subjects, comrades }: EduWrappe
                             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
                                 <Sparkles className="w-4 h-4" /> Insight Gen-AI
                             </div>
-                            <p className="text-[10px] font-mono opacity-50">STABLE_WRAP_V1</p>
+                            <div className="flex items-center gap-2 text-[10px] font-mono opacity-50">
+                                <span>STABLE_WRAP_V1</span>
+                                <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                            </div>
                         </div>
                     </motion.div>
                 </AnimatePresence>
