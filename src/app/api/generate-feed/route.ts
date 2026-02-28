@@ -19,27 +19,32 @@ export async function POST(req: NextRequest) {
         const embeddingResult = await embeddingModelSafe.embedContent(queryTerm);
         const queryEmbedding = embeddingResult.embedding.values;
 
-        // 2. Query Pinecone for relevant chunks
+        // 2. Query Pinecone for relevant chunks and past generated summaries
         const index = getPineconeIndex();
         const queryResponse = await index.query({
             vector: queryEmbedding,
             filter: {
                 userId: { $eq: userId }
             },
-            topK: 5, // Get top 5 most relevant chunks
+            topK: 15, // Get top 15 matches (mix of doc chunks and past summaries)
             includeMetadata: true
         });
 
-        // 3. Construct context from retrieved chunks
+        // 3. Construct context from retrieved chunks and extract past summaries
         const matches = queryResponse.matches || [];
-        let context = "";
 
-        if (matches.length > 0) {
-            context = matches.map(match => match.metadata?.text || "").join("\n---\n");
+        const documentChunks = matches.filter(m => m.metadata?.type !== 'generated_summary');
+        const pastSummaryMatches = matches.filter(m => m.metadata?.type === 'generated_summary');
+
+        let context = "";
+        if (documentChunks.length > 0) {
+            context = documentChunks.map(match => match.metadata?.text || "").join("\n---\n");
         } else {
             // Fallback context if user has no documents
             context = `The user is studying ${queryTerm}. Please generate introductory general knowledge content about this topic since they haven't uploaded specific materials yet.`;
         }
+
+        const pineconePreviousTopics = pastSummaryMatches.map(m => m.metadata?.text as string).filter(Boolean);
 
         // 3.5 Query Firestore for recently generated topics to prevent duplication
         const feedsRef = collection(db, "feeds");
@@ -51,10 +56,13 @@ export async function POST(req: NextRequest) {
         }
 
         const recentDocs = await getDocs(recentQuery);
-        const previousTopics = recentDocs.docs.map(doc => doc.data().topic).filter(Boolean);
+        const firestorePreviousTopics = recentDocs.docs.map(doc => doc.data().topic).filter(Boolean);
+
+        // Combine Pinecone past summaries and Firestore previous topics
+        const allPreviousTopics = [...new Set([...pineconePreviousTopics, ...firestorePreviousTopics])];
 
         // 4. Generate Content with Gemini Flash (faster for generated feeds)
-        const prompt = getGenerateFeedPrompt(context, expertiseLevel, previousTopics);
+        const prompt = getGenerateFeedPrompt(context, expertiseLevel, allPreviousTopics);
 
         // Prepend system prompt to user prompt to avoid SDK type mismatches with systemInstruction
         const combinedPrompt = `${SYSTEM_PROMPT}\n\nTask:\n${prompt}`;
@@ -100,6 +108,30 @@ export async function POST(req: NextRequest) {
                         comments: 0,
                     });
                 }));
+
+                // 5. Upsert newly generated feed summary to Pinecone
+                const generatedTopics = items.map((i: any) => i.topic).join(", ");
+                const summaryText = `Generated feed about ${subject || 'general knowledge'} for ${expertiseLevel} student. Topics covered: ${generatedTopics}`;
+
+                try {
+                    const embedResult = await embeddingModelSafe.embedContent(summaryText);
+                    const newEmbedding = embedResult.embedding.values;
+
+                    await index.upsert([{
+                        id: `summary-${userId}-${Date.now()}`,
+                        values: newEmbedding,
+                        metadata: {
+                            userId,
+                            subject: subject || 'general knowledge',
+                            type: 'generated_summary',
+                            text: summaryText,
+                            timestamp: Date.now()
+                        }
+                    }] as any);
+                    console.log(`[GENERATE_FEED] Upserted summary to Pinecone for ${subject}: ${summaryText}`);
+                } catch (pineconeErr) {
+                    console.error("[GENERATE_FEED] Failed to upsert summary to Pinecone:", pineconeErr);
+                }
             }
 
             return NextResponse.json({ success: true, count: items.length });
