@@ -40,6 +40,32 @@ export async function sendFriendRequest(fromUid: string, fromName: string, toUid
         status: 'pending',
         createdAt: serverTimestamp()
     });
+
+    // Send notification
+    try {
+        const fromUserDoc = await getDoc(doc(db, "users", fromUid));
+        let subjectsMsg = "";
+        if (fromUserDoc.exists()) {
+            const data = fromUserDoc.data();
+            const subjects = (data.subjects || []).map((s: any) => typeof s === 'string' ? s : s.name);
+            if (subjects.length > 0) {
+                subjectsMsg = ` studying ${subjects.slice(0, 2).join(" & ")}`;
+            }
+        }
+
+        const notifRef = collection(db, `users/${toUid}/notifications`);
+        await addDoc(notifRef, {
+            type: 'comrade_request',
+            fromUserId: fromUid,
+            fromUserName: fromName,
+            message: `${fromName}${subjectsMsg} sent you a comrade request.`,
+            link: `/profile?id=${fromUid}`,
+            isRead: false,
+            createdAt: serverTimestamp()
+        });
+    } catch (err) {
+        console.error("Error sending notification:", err);
+    }
 }
 
 export async function acceptFriendRequest(requestId: string, fromUid: string, toUid: string) {

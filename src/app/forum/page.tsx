@@ -156,6 +156,20 @@ export default function ForumPage() {
                 replyCount: increment(1)
             });
 
+            // Send notification to post author
+            if (activeThread && activeThread.userId !== user.uid) {
+                const notifRef = collection(db, `users/${activeThread.userId}/notifications`);
+                await addDoc(notifRef, {
+                    type: 'reply',
+                    fromUserId: user.uid,
+                    fromUserName: userName,
+                    message: `${userName} replied to your post in ${activeThread.subject}.`,
+                    link: `/forum?threadId=${activeThreadId}`,
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                });
+            }
+
             setNewReply("");
         } catch (error) {
             console.error("Error replying:", error);

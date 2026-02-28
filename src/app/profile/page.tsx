@@ -2,11 +2,11 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { doc, getDoc, collection, getDocs, orderBy, query, limit, where } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, orderBy, query, limit, where, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase/config";
 import { signOut } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Zap, Flame, Trophy, LogOut, FileText, ArrowLeft, UserPlus, Check, X, Users } from "lucide-react";
+import { Loader2, Zap, Flame, Trophy, LogOut, FileText, ArrowLeft, UserPlus, Check, X, Users, Bell } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPendingRequests, getComrades, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, FriendRequest } from "@/lib/social";
@@ -31,6 +31,7 @@ function ProfileContent() {
     const [documents, setDocuments] = useState<any[]>([]);
     const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
     const [comrades, setComrades] = useState<any[]>([]);
+    const [unreadNotifs, setUnreadNotifs] = useState(0);
     const [isRequestSent, setIsRequestSent] = useState(false);
     const [loading, setLoading] = useState(true);
     const [leaderboard, setLeaderboard] = useState<{ id: string; displayName: string; xp: number }[]>([]);
@@ -42,6 +43,15 @@ function ProfileContent() {
             const uidToFetch = targetUid || user.uid;
 
             try {
+                // Listen to notifications if own profile
+                if (isOwnProfile) {
+                    const notifRef = collection(db, `users/${user.uid}/notifications`);
+                    const q = query(notifRef, where("isRead", "==", false));
+                    onSnapshot(q, (snapshot) => {
+                        setUnreadNotifs(snapshot.size);
+                    });
+                }
+
                 const docSnap = await getDoc(doc(db, "users", uidToFetch));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -159,9 +169,19 @@ function ProfileContent() {
                             {isOwnProfile ? "My Profile" : "User Profile"}
                         </h1>
                         {isOwnProfile ? (
-                            <button onClick={handleSignOut} className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/20 transition">
-                                <LogOut className="w-5 h-5" />
-                            </button>
+                            <div className="flex gap-2">
+                                <Link href="/profile/notifications" className="w-10 h-10 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center text-white hover:bg-zinc-800 transition relative">
+                                    <Bell className="w-5 h-5" />
+                                    {unreadNotifs > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center text-[10px] font-bold ring-2 ring-zinc-950 animate-pulse">
+                                            {unreadNotifs}
+                                        </span>
+                                    )}
+                                </Link>
+                                <button onClick={handleSignOut} className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/20 transition">
+                                    <LogOut className="w-5 h-5" />
+                                </button>
+                            </div>
                         ) : (
                             <div className="w-10" />
                         )}
@@ -332,6 +352,7 @@ function ProfileContent() {
                         </>
                     )}
                 </motion.div>
+
                 {/* Right Column: Global Leaderboard */}
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5 xl:col-span-4 flex flex-col">
                     <div className="sticky top-6 bg-zinc-900/40 border border-zinc-800/50 rounded-[2rem] p-6 backdrop-blur-xl shadow-2xl flex-col flex h-fit max-h-[calc(100vh-3rem)]">
