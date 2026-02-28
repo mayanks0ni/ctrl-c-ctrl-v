@@ -155,58 +155,60 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         }
 
         const feedsUnsubscribe = onSnapshot(q, async (snapshot) => {
-            const feedItems: FeedItemType[] = [];
+            // Build a map of all current snapshot items for fast lookup
+            const snapshotMap = new Map<string, FeedItemType>();
             const retryItemsRaw: FeedItemType[] = [];
 
-            // Separate retries from general feed items
-            snapshot.forEach((doc) => {
-                const data = doc.data();
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
                 if (data.type) {
-                    const item = { ...data, id: doc.id } as FeedItemType;
-                    if (retryQuizzes.includes(doc.id)) {
+                    const item = { ...data, id: docSnap.id } as FeedItemType;
+                    if (retryQuizzes.includes(docSnap.id)) {
                         retryItemsRaw.push(item);
-                    } else if (!viewedReels.includes(doc.id)) {
+                    } else if (!viewedReels.includes(docSnap.id)) {
                         if (quizOnly && data.type !== "quiz") return;
-                        feedItems.push(item);
+                        snapshotMap.set(docSnap.id, item);
                     }
                 }
             });
 
-            if (quizOnly) {
-                setItems(prevItems => {
-                    const availableQuizzes = feedItems.filter(item => !prevItems.some(p => p.id === item.id));
-                    // Also include retries for the quizOnly mode
-                    const availableRetries = retryItemsRaw.filter(item => !prevItems.some(p => p.id === item.id));
-                    return [...prevItems, ...availableRetries, ...availableQuizzes];
-                });
-                setLoading(false);
-                if (feedItems.length === 0 && !isGenerating) triggerGeneration();
-                return;
-            }
-
-            // Injection spacing logic for mixed feed
-            const quizzes: FeedItemType[] = [];
-            const general: FeedItemType[] = [];
-            feedItems.forEach(item => {
-                if (item.type === "quiz") quizzes.push(item);
-                else general.push(item);
-            });
-
-            const shuffleArray = (arr: FeedItemType[]) => {
-                for (let i = arr.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [arr[i], arr[j]] = [arr[j], arr[i]];
-                }
-            };
-            shuffleArray(quizzes);
-            shuffleArray(general);
-            shuffleArray(retryItemsRaw);
-
             setItems(prevItems => {
-                const updatedPrevItems = prevItems.map(p => {
-                    const found = snapshot.docs.find(f => f.id === p.id);
-                    return found ? { ...found.data(), id: found.id } as FeedItemType : p;
-                }).filter(p => !viewedReels.includes(p.id) || retryQuizzes.includes(p.id));
+                // 1. Update existing items in-place (metadata like upvotes/comments)
+                //    and filter out viewed items. Preserve order completely.
+                const updatedPrevItems = prevItems
+                    .map(p => {
+                        const fresh = snapshotMap.get(p.id) || retryItemsRaw.find(r => r.id === p.id);
+                        return fresh ? { ...fresh } : p;
+                    })
+                    .filter(p => !viewedReels.includes(p.id) || retryQuizzes.includes(p.id));
+
+                // 2. Find genuinely NEW items not already in the list
+                const existingIds = new Set(updatedPrevItems.map(p => p.id));
+                const newFeedItems = Array.from(snapshotMap.values()).filter(item => !existingIds.has(item.id));
+                const newRetryItems = retryItemsRaw.filter(item => !existingIds.has(item.id));
+
+                // 3. If no new items, just return the in-place updated list (no scroll disruption)
+                if (newFeedItems.length === 0 && newRetryItems.length === 0) {
+                    return updatedPrevItems;
+                }
+
+                // 4. Only run shuffle + injection for genuinely new items
+                if (quizOnly) {
+                    return [...updatedPrevItems, ...newRetryItems, ...newFeedItems];
+                }
+
+                const newQuizzes = newFeedItems.filter(i => i.type === "quiz");
+                const newGeneral = newFeedItems.filter(i => i.type !== "quiz");
+
+                const shuffleArray = (arr: FeedItemType[]) => {
+                    for (let i = arr.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [arr[i], arr[j]] = [arr[j], arr[i]];
+                    }
+                };
+                shuffleArray(newQuizzes);
+                shuffleArray(newGeneral);
+                shuffleArray(newRetryItems);
 
                 let nonQuizCountAtEnd = 0;
                 for (let i = updatedPrevItems.length - 1; i >= 0; i--) {
@@ -214,30 +216,26 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
                     else break;
                 }
 
-                const availableGeneral = general.filter(item => !prevItems.some(p => p.id === item.id));
-                const availableQuizzes = quizzes.filter(item => !prevItems.some(p => p.id === item.id));
-                const availableRetries = retryItemsRaw.filter(item => !prevItems.some(p => p.id === item.id));
-                const newItems: FeedItemType[] = [];
-
-                while (availableGeneral.length > 0 || availableQuizzes.length > 0 || availableRetries.length > 0) {
+                const injectedItems: FeedItemType[] = [];
+                while (newGeneral.length > 0 || newQuizzes.length > 0 || newRetryItems.length > 0) {
                     const targetGap = Math.floor(Math.random() * 3) + 7;
                     if (nonQuizCountAtEnd >= targetGap) {
-                        if (availableRetries.length > 0) {
-                            newItems.push(availableRetries.pop()!);
-                        } else if (availableQuizzes.length > 0) {
-                            newItems.push(availableQuizzes.pop()!);
+                        if (newRetryItems.length > 0) {
+                            injectedItems.push(newRetryItems.pop()!);
+                        } else if (newQuizzes.length > 0) {
+                            injectedItems.push(newQuizzes.pop()!);
                         }
                         nonQuizCountAtEnd = 0;
-                    } else if (availableGeneral.length > 0) {
-                        newItems.push(availableGeneral.pop()!);
+                    } else if (newGeneral.length > 0) {
+                        injectedItems.push(newGeneral.pop()!);
                         nonQuizCountAtEnd++;
                     } else break;
                 }
-                return [...updatedPrevItems, ...newItems];
+                return [...updatedPrevItems, ...injectedItems];
             });
             setLoading(false);
 
-            if (feedItems.length === 0 && !isGenerating) triggerGeneration();
+            if (snapshotMap.size === 0 && !isGenerating) triggerGeneration();
         });
 
         return () => {
