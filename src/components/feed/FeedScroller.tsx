@@ -291,7 +291,7 @@ function FeedItemWrapper({ item, userId, isTriggerElement, lastItemRef, onViewed
                     }
                 }
             });
-        }, { threshold: 0.6 });
+        }, { threshold: 0.95 });
 
         observer.observe(node);
         return () => observer.disconnect();
