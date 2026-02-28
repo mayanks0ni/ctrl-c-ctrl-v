@@ -119,16 +119,23 @@ const CommentsModal = ({ feedId, userId, onClose }: { feedId: string, userId: st
 const EngagementBar = ({ item, userId }: { item: FeedItemType; userId: string }) => {
     const [showComments, setShowComments] = useState(false);
 
-    const voteStatus = item.votedBy?.[userId] || null;
-    const upcount = item.upvotes || 0;
-    const downcount = item.downvotes || 0;
+    // Optimistic local state for instant UI updates
+    const [localUpcount, setLocalUpcount] = useState(item.upvotes || 0);
+    const [localDowncount, setLocalDowncount] = useState(item.downvotes || 0);
+    const [localVoteStatus, setLocalVoteStatus] = useState<'up' | 'down' | null>(item.votedBy?.[userId] || null);
+
+    // Sync local state when server data arrives
+    useEffect(() => {
+        setLocalUpcount(item.upvotes || 0);
+        setLocalDowncount(item.downvotes || 0);
+        setLocalVoteStatus(item.votedBy?.[userId] || null);
+    }, [item.upvotes, item.downvotes, item.votedBy, userId]);
 
     const handleVote = async (type: 'up' | 'down', e: React.MouseEvent) => {
         e.stopPropagation();
         if (!userId || !item.id) return;
-        const feedRef = doc(db, "feeds", item.id);
-        const currentVote = item.votedBy?.[userId];
 
+        const currentVote = localVoteStatus;
         let upChange = 0;
         let downChange = 0;
         let newVote: 'up' | 'down' | null = type;
@@ -147,13 +154,28 @@ const EngagementBar = ({ item, userId }: { item: FeedItemType; userId: string })
             }
         }
 
+        // Optimistic update — instant UI feedback
+        setLocalUpcount(prev => prev + upChange);
+        setLocalDowncount(prev => prev + downChange);
+        setLocalVoteStatus(newVote);
+
+        // Persist to Firestore in the background
+        const feedRef = doc(db, "feeds", item.id);
         const updates: any = {
             [`votedBy.${userId}`]: newVote === null ? deleteField() : newVote
         };
         if (upChange !== 0) updates.upvotes = increment(upChange);
         if (downChange !== 0) updates.downvotes = increment(downChange);
 
-        await updateDoc(feedRef, updates);
+        try {
+            await updateDoc(feedRef, updates);
+        } catch (err) {
+            // Revert on failure
+            setLocalUpcount(prev => prev - upChange);
+            setLocalDowncount(prev => prev - downChange);
+            setLocalVoteStatus(currentVote);
+            console.error("Vote failed:", err);
+        }
     };
 
     return (
@@ -162,16 +184,16 @@ const EngagementBar = ({ item, userId }: { item: FeedItemType; userId: string })
                 <div className="flex flex-col items-center gap-1">
                     <button
                         onClick={(e) => handleVote('up', e)}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${voteStatus === 'up' ? "text-orange-500 border-orange-500" : "text-white border-white/10 hover:text-orange-400"}`}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${localVoteStatus === 'up' ? "text-orange-500 border-orange-500" : "text-white border-white/10 hover:text-orange-400"}`}
                     >
-                        <ArrowBigUp className={`w-8 h-8 ${voteStatus === 'up' ? "fill-current" : ""}`} />
+                        <ArrowBigUp className={`w-8 h-8 ${localVoteStatus === 'up' ? "fill-current" : ""}`} />
                     </button>
-                    <span className="text-white text-xs font-bold drop-shadow-md">{upcount - downcount}</span>
+                    <span className="text-white text-xs font-bold drop-shadow-md">{localUpcount - localDowncount}</span>
                     <button
                         onClick={(e) => handleVote('down', e)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${voteStatus === 'down' ? "text-blue-500 border-blue-500" : "text-white border-white/10 hover:text-blue-400"}`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 backdrop-blur-md border ${localVoteStatus === 'down' ? "text-blue-500 border-blue-500" : "text-white border-white/10 hover:text-blue-400"}`}
                     >
-                        <ArrowBigDown className={`w-6 h-6 ${voteStatus === 'down' ? "fill-current" : ""}`} />
+                        <ArrowBigDown className={`w-6 h-6 ${localVoteStatus === 'down' ? "fill-current" : ""}`} />
                     </button>
                 </div>
 
