@@ -33,6 +33,8 @@ function ProfileContent() {
     const [comrades, setComrades] = useState<any[]>([]);
     const [isRequestSent, setIsRequestSent] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [leaderboard, setLeaderboard] = useState<{ id: string; displayName: string; xp: number }[]>([]);
+    const [fetchingLeaderboard, setFetchingLeaderboard] = useState(true);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -80,8 +82,28 @@ function ProfileContent() {
             }
         };
 
+        const fetchLeaderboard = async () => {
+            try {
+                setFetchingLeaderboard(true);
+                const usersRef = collection(db, "users");
+                const q = query(usersRef, orderBy("xp", "desc"), limit(50));
+                const snapshot = await getDocs(q);
+                const leaderboardData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    displayName: doc.data().displayName || "Anonymous Learner",
+                    xp: doc.data().xp || 0
+                }));
+                setLeaderboard(leaderboardData);
+            } catch (error) {
+                console.error("Failed to fetch leaderboard:", error);
+            } finally {
+                setFetchingLeaderboard(false);
+            }
+        };
+
         if (user && !authLoading) {
             fetchProfile();
+            fetchLeaderboard();
         }
     }, [user, authLoading, targetUid, isOwnProfile]);
 
@@ -125,177 +147,282 @@ function ProfileContent() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/20 blur-[100px] rounded-full" />
             <div className="absolute top-40 left-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full" />
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-xl mx-auto relative z-10">
-                <div className="flex justify-between items-center mb-8">
-                    <button onClick={() => router.back()} className="w-10 h-10 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center text-white hover:bg-zinc-800 transition">
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-                        {isOwnProfile ? "My Profile" : "User Profile"}
-                    </h1>
-                    {isOwnProfile ? (
-                        <button onClick={handleSignOut} className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/20 transition">
-                            <LogOut className="w-5 h-5" />
+            <div className="max-w-6xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left Column: Profile Info & Stats */}
+                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-7 xl:col-span-8 flex flex-col">
+                    {/* Header */}
+                    <div className="flex justify-between items-center mb-8">
+                        <button onClick={() => router.back()} className="w-10 h-10 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center text-white hover:bg-zinc-800 transition">
+                            <ArrowLeft className="w-5 h-5" />
                         </button>
-                    ) : (
-                        <div className="w-10" />
-                    )}
-                </div>
-
-                <div className="bg-gradient-to-br from-zinc-800/80 to-zinc-900/80 backdrop-blur-xl border border-zinc-700/50 rounded-[2rem] p-8 mb-6 shadow-2xl relative overflow-hidden">
-                    <div className="flex items-center gap-6 mb-8">
-                        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-lg shadow-purple-500/20 ring-4 ring-zinc-950">
-                            {stats.displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1">
-                            <h2 className="text-3xl font-bold mb-1">{stats.displayName}</h2>
-                            <p className="text-zinc-400 font-medium tracking-wide text-sm">{isOwnProfile ? user?.email : "Community Member"}</p>
-                        </div>
-                        {!isOwnProfile && (
-                            <button
-                                onClick={handleAddComrade}
-                                disabled={isRequestSent || isAlreadyComrade}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 ${isAlreadyComrade ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
-                                        isRequestSent ? 'bg-zinc-800 text-zinc-500 cursor-default' :
-                                            'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
-                                    }`}
-                            >
-                                {isAlreadyComrade ? <Check className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                                {isAlreadyComrade ? "Comrade" : isRequestSent ? "Sent" : "Add"}
+                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                            {isOwnProfile ? "My Profile" : "User Profile"}
+                        </h1>
+                        {isOwnProfile ? (
+                            <button onClick={handleSignOut} className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/20 transition">
+                                <LogOut className="w-5 h-5" />
                             </button>
+                        ) : (
+                            <div className="w-10" />
                         )}
                     </div>
 
-                    <div className="bg-black/40 rounded-2xl p-5 border border-white/5">
-                        <div className="flex justify-between items-end mb-3">
-                            <div>
-                                <p className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-1">Current Level</p>
-                                <p className="text-4xl font-black">Lvl {level}</p>
+                    {/* User Info & Level Card */}
+                    <div className="bg-gradient-to-br from-zinc-800/80 to-zinc-900/80 backdrop-blur-xl border border-zinc-700/50 rounded-[2rem] p-8 mb-6 shadow-2xl relative overflow-hidden">
+                        <div className="flex items-center gap-6 mb-8">
+                            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-lg shadow-purple-500/20 ring-4 ring-zinc-950">
+                                {stats.displayName.charAt(0).toUpperCase()}
                             </div>
-                            <div className="text-right">
-                                <p className="text-sm font-medium text-zinc-400">{progressToNextLevel} / 100 XP to Next</p>
+                            <div className="flex-1">
+                                <h2 className="text-3xl font-bold mb-1">{stats.displayName}</h2>
+                                <p className="text-zinc-400 font-medium tracking-wide text-sm">{isOwnProfile ? user?.email : "Community Member"}</p>
+                            </div>
+                            {!isOwnProfile && (
+                                <button
+                                    onClick={handleAddComrade}
+                                    disabled={isRequestSent || isAlreadyComrade}
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 ${isAlreadyComrade ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
+                                        isRequestSent ? 'bg-zinc-800 text-zinc-500 cursor-default' :
+                                            'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
+                                        }`}
+                                >
+                                    {isAlreadyComrade ? <Check className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                                    {isAlreadyComrade ? "Comrade" : isRequestSent ? "Sent" : "Add"}
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="bg-black/40 rounded-2xl p-5 border border-white/5">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <p className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-1">Current Level</p>
+                                    <p className="text-4xl font-black">Lvl {level}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-medium text-zinc-400">{progressToNextLevel} / 100 XP to Next</p>
+                                </div>
+                            </div>
+                            <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${progressToNextLevel}%` }}
+                                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full relative"
+                                >
+                                    <div className="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                                </motion.div>
                             </div>
                         </div>
-                        <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${progressToNextLevel}%` }} className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full relative">
-                                <div className="absolute inset-0 bg-white/20 w-full animate-pulse" />
-                            </motion.div>
-                        </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                    <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-3xl p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center text-orange-400 mb-3">
-                            <Flame className="w-6 h-6" />
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-3xl p-6 flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center text-orange-400 mb-3">
+                                <Flame className="w-6 h-6" />
+                            </div>
+                            <p className="text-3xl font-bold text-white mb-1">{stats.streak}</p>
+                            <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Day Streak</p>
                         </div>
-                        <p className="text-3xl font-bold text-white mb-1">{stats.streak}</p>
-                        <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Day Streak</p>
-                    </div>
-                    <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-3xl p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 bg-yellow-500/20 rounded-2xl flex items-center justify-center text-yellow-400 mb-3">
-                            <Trophy className="w-6 h-6" />
+                        <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-3xl p-6 flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-yellow-500/20 rounded-2xl flex items-center justify-center text-yellow-400 mb-3">
+                                <Trophy className="w-6 h-6" />
+                            </div>
+                            <p className="text-3xl font-bold text-white mb-1">{stats.xp}</p>
+                            <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Total XP</p>
                         </div>
-                        <p className="text-3xl font-bold text-white mb-1">{stats.xp}</p>
-                        <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Total XP</p>
                     </div>
-                </div>
 
-                {isOwnProfile && (
-                    <>
-                        {/* Pending Requests */}
-                        <AnimatePresence>
-                            {pendingRequests.length > 0 && (
-                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-8 overflow-hidden">
-                                    <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Pending Comrade Requests</h3>
-                                    <div className="space-y-2">
-                                        {pendingRequests.map(req => (
-                                            <div key={req.id} className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-sm">
-                                                        {req.fromName.charAt(0).toUpperCase()}
+                    {isOwnProfile && (
+                        <>
+                            {/* Pending Requests */}
+                            <AnimatePresence>
+                                {pendingRequests.length > 0 && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-8 overflow-hidden">
+                                        <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Pending Comrade Requests</h3>
+                                        <div className="space-y-2">
+                                            {pendingRequests.map(req => (
+                                                <div key={req.id} className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-sm">
+                                                            {req.fromName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <p className="font-bold text-sm">{req.fromName}</p>
                                                     </div>
-                                                    <p className="font-bold text-sm">{req.fromName}</p>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => handleAccept(req)} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition"><Check className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleReject(req.id)} className="p-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition"><X className="w-4 h-4" /></button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => handleAccept(req)} className="p-2 bg-blue-600 rounded-xl hover:bg-blue-500 transition"><Check className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleReject(req.id)} className="p-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition"><X className="w-4 h-4" /></button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Comrades List */}
+                            <div className="mb-8">
+                                <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Comrades</h3>
+                                {comrades.length === 0 ? (
+                                    <p className="text-sm text-zinc-600 px-2 italic">Connect with others in the forum to add comrades!</p>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {comrades.map(c => (
+                                            <Link href={`/profile?id=${c.uid}`} key={c.uid} className="bg-zinc-900/50 border border-zinc-800 p-3 rounded-2xl flex items-center gap-3 hover:bg-zinc-800 transition">
+                                                <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center font-bold text-xs ring-1 ring-zinc-700">
+                                                    {c.displayName?.charAt(0).toUpperCase() || "L"}
                                                 </div>
-                                            </div>
+                                                <p className="font-bold text-xs truncate">{c.displayName || "Learner"}</p>
+                                            </Link>
                                         ))}
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* Comrades List */}
-                        <div className="mb-8">
-                            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase mb-4 px-2">Comrades</h3>
-                            {comrades.length === 0 ? (
-                                <p className="text-sm text-zinc-600 px-2 italic">Connect with others in the forum to add comrades!</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {comrades.map(c => (
-                                        <Link href={`/profile?id=${c.uid}`} key={c.uid} className="bg-zinc-900/50 border border-zinc-800 p-3 rounded-2xl flex items-center gap-3 hover:bg-zinc-800 transition">
-                                            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center font-bold text-xs ring-1 ring-zinc-700">
-                                                {c.displayName?.charAt(0).toUpperCase() || "L"}
-                                            </div>
-                                            <p className="font-bold text-xs truncate">{c.displayName || "Learner"}</p>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                <div className="flex justify-between items-center mb-4 px-2">
-                    <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">{isOwnProfile ? "Your Subjects" : `${stats.displayName}'s Subjects`}</h3>
-                    {isOwnProfile && <Link href="/onboarding" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Edit Subjects</Link>}
-                </div>
-                <div className="flex flex-wrap gap-2 mb-8 px-2">
-                    {stats.subjects.map((sub: any) => {
-                        const subjectName = typeof sub === 'string' ? sub : sub.name;
-                        return (
-                            <div key={subjectName} className="bg-zinc-900/50 border border-zinc-800 px-4 py-2.5 rounded-xl flex items-center gap-3">
-                                <span className="text-sm font-bold text-zinc-100">{subjectName}</span>
-                                {typeof sub === 'object' && sub.difficulty && (
-                                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-500 border border-zinc-700">
-                                        {sub.difficulty}
-                                    </span>
                                 )}
                             </div>
-                        );
-                    })}
-                </div>
+                        </>
+                    )}
 
-                {isOwnProfile && (
-                    <>
-                        <div className="flex justify-between items-end mb-4 px-2">
-                            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Recent Uploads</h3>
-                            <Link href="/upload" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Upload +</Link>
-                        </div>
-                        <div className="space-y-3">
-                            {documents.length === 0 ? (
-                                <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-6 text-center text-zinc-500">No documents uploaded yet.</div>
-                            ) : (
-                                documents.map(doc => (
-                                    <div key={doc.id} className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-zinc-800/50 transition">
-                                        <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 shrink-0"><FileText className="w-5 h-5" /></div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-medium text-sm truncate">{doc.fileName}</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className={`w-2 h-2 rounded-full ${doc.status === 'processed' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                                                <p className="text-xs text-zinc-500 capitalize">{doc.status}</p>
-                                            </div>
-                                        </div>
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">{isOwnProfile ? "Your Subjects" : `${stats.displayName}'s Subjects`}</h3>
+                        {isOwnProfile && <Link href="/onboarding" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Edit Subjects</Link>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-8 px-2">
+                        {stats.subjects.map((sub: any) => {
+                            const subjectName = typeof sub === 'string' ? sub : sub.name;
+                            return (
+                                <div key={subjectName} className="bg-zinc-900/50 border border-zinc-800 px-4 py-2.5 rounded-xl flex items-center gap-3">
+                                    <span className="text-sm font-bold text-zinc-100">{subjectName}</span>
+                                    {typeof sub === 'object' && sub.difficulty && (
+                                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-500 border border-zinc-700">
+                                            {sub.difficulty}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {isOwnProfile && (
+                        <>
+                            <div className="flex justify-between items-end mb-4 px-2">
+                                <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Recent Uploads</h3>
+                                <Link href="/upload" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition">Upload +</Link>
+                            </div>
+
+                            <div className="space-y-3 mb-8 lg:mb-0">
+                                {documents.length === 0 ? (
+                                    <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-6 text-center text-zinc-500">
+                                        No documents uploaded yet.
                                     </div>
-                                ))
+                                ) : (
+                                    documents.map(doc => (
+                                        <motion.div whileHover={{ scale: 1.01 }} key={doc.id} className="cursor-pointer bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-zinc-800/50 transition">
+                                            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 shrink-0">
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium text-sm truncate">{doc.fileName}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`w-2 h-2 rounded-full ${doc.status === 'processed' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                                                    <p className="text-xs text-zinc-500 capitalize">{doc.status}</p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                )}
+                            </div>
+                        </>
+                    )}
+                </motion.div>
+                {/* Right Column: Global Leaderboard */}
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-5 xl:col-span-4 flex flex-col">
+                    <div className="sticky top-6 bg-zinc-900/40 border border-zinc-800/50 rounded-[2rem] p-6 backdrop-blur-xl shadow-2xl flex-col flex h-fit max-h-[calc(100vh-3rem)]">
+                        <div className="flex items-center gap-3 mb-6 shrink-0">
+                            <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-yellow-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 rotate-3">
+                                <Trophy className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-white tracking-tight">Top Learners</h3>
+                                <p className="text-sm text-zinc-400 font-medium">Global Rankings</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 overflow-y-auto pr-2 pb-2 custom-scrollbar">
+                            {fetchingLeaderboard ? (
+                                <div className="bg-zinc-800/20 border border-zinc-800/50 rounded-2xl p-8 flex justify-center items-center">
+                                    <Loader2 className="w-8 h-8 text-zinc-500 animate-spin" />
+                                </div>
+                            ) : leaderboard.length === 0 ? (
+                                <div className="bg-zinc-800/20 border border-zinc-800/50 rounded-2xl p-6 text-center text-zinc-500">
+                                    No leaderboard data available.
+                                </div>
+                            ) : (
+                                leaderboard.map((userStats, index) => {
+                                    const isCurrentUser = userStats.id === user?.uid;
+                                    const levelCalculated = Math.floor(userStats.xp / 100) + 1;
+
+                                    // Fun gamified ranking displays
+                                    let rankDisplay: React.ReactNode = <span className="font-bold text-zinc-400">{index + 1}</span>;
+                                    let rankBg = "bg-zinc-800/50 border-zinc-700/50";
+
+                                    if (index === 0) {
+                                        rankDisplay = <span className="text-xl">👑</span>;
+                                        rankBg = "bg-yellow-500/20 border-yellow-500/50 ring-2 ring-yellow-500/20 shadow-[0_0_15px_rgba(234,179,8,0.3)] animate-pulse-slow";
+                                    } else if (index === 1) {
+                                        rankDisplay = <span className="text-xl">🥈</span>;
+                                        rankBg = "bg-zinc-300/20 border-zinc-300/50 ring-1 ring-zinc-300/50";
+                                    } else if (index === 2) {
+                                        rankDisplay = <span className="text-xl">🥉</span>;
+                                        rankBg = "bg-orange-600/20 border-orange-500/50 ring-1 ring-orange-500/50";
+                                    }
+
+                                    return (
+                                        <motion.div
+                                            key={userStats.id}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            whileHover={{ scale: 1.02, x: 4 }}
+                                            className={`relative border rounded-2xl p-3 flex items-center gap-3 transition-all duration-200 cursor-pointer overflow-hidden group
+                                                ${isCurrentUser
+                                                    ? 'bg-blue-600/20 border-blue-400/50 shadow-lg shadow-blue-500/10 ring-1 ring-blue-400/30'
+                                                    : 'bg-zinc-950/50 border-zinc-800/50 hover:bg-zinc-800/50'
+                                                }`}
+                                        >
+                                            {/* Hover highlight effect */}
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:animate-shimmer" />
+
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${rankBg}`}>
+                                                {rankDisplay}
+                                            </div>
+
+                                            <div className="w-10 h-10 bg-gradient-to-br from-zinc-700 to-zinc-800 rounded-full flex items-center justify-center text-lg font-black text-white shrink-0 shadow-inner">
+                                                {userStats.displayName.charAt(0).toUpperCase()}
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`font-bold text-sm truncate ${isCurrentUser ? 'text-blue-300' : 'text-zinc-200'}`}>
+                                                    {userStats.displayName} {isCurrentUser && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full ml-1">You</span>}
+                                                </p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-white bg-zinc-800 px-1.5 py-0.5 rounded-md">
+                                                        Lvl {levelCalculated}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right shrink-0 pr-1">
+                                                <p className={`font-black tracking-tight text-lg leading-none ${isCurrentUser ? 'text-blue-400' : 'text-white'}`}>
+                                                    {userStats.xp}
+                                                </p>
+                                                <p className="text-[9px] font-bold tracking-widest text-zinc-500 uppercase mt-1">XP</p>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })
                             )}
                         </div>
-                    </>
-                )}
-            </motion.div>
+                    </div>
+                </motion.div>
+            </div>
         </div>
     );
 }
