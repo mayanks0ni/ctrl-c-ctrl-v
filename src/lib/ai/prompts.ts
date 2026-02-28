@@ -23,7 +23,7 @@ Please explore new angles, different sub-topics, or entirely unseen concepts fro
   }
 
   return `
-Based on the following academic text, generate a feed of 3-5 learning items.
+Based on the provided academic text, generate a feed of EXACTLY 15-20 highly concise learning items.
 ${deduplicationInstruction}
 
 Context:
@@ -33,11 +33,13 @@ ${context}
 
 The target audience is a student with an expertise level of: ${expertiseLevel}. Adjust the vocabulary and depth accordingly.
 
+TOKEN EFFICIENCY CRITICAL: Your output must be large in quantity (15-20 items) but small in token size. Keep titles, hooks, content, and explanations extremely brief (1-2 sentences max).
+
 Generate an array of items. Each item must be one of these types:
-1. "summary" - A quick, bulleted breakdown of a core concept.
-2. "post" - A short, engaging text post with a hook and an explanation (like a Twitter thread or LinkedIn post).
-3. "visual_concept" - An analogy or mental model explaining the concept visually using words (e.g., "Imagine the cell as a busy factory...").
-4. "quiz" - A multiple-choice question to test active recall.
+1. "summary" - A quick, bulleted breakdown of a core concept (max 3 bullets, 5 words each).
+2. "post" - A short, engaging text post with a hook and an explanation (2 sentences max).
+3. "visual_concept" - An analogy explaining the concept using words (2 sentences max).
+4. "quiz" - A multiple-choice question to test active recall (short questions, 1-3 word options).
 
 Return the result STRICTLY as a JSON object matching this TypeScript interface:
 

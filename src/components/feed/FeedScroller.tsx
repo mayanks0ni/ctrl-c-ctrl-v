@@ -144,26 +144,31 @@ export default function FeedScroller({ userId, subject, difficulty, userSubjects
         >
             <style jsx global>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
-            {items.map((item, index) => (
-                <div key={`${item.id}-${index}`} className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black">
-                    {item.type === "post" && <PostCard item={item} userId={userId} />}
-                    {item.type === "summary" && <SummaryCard item={item} userId={userId} />}
-                    {item.type === "visual_concept" && <VisualCard item={item} userId={userId} />}
-                    {item.type === "quiz" && <QuizCard item={item} userId={userId} />}
-                </div>
-            ))}
+            {items.map((item, index) => {
+                // Calculate 75% threshold
+                const isTriggerElement = items.length > 5 && index === Math.floor(items.length * 0.75);
 
-            {/* Infinite Scroll Trigger Area */}
-            {items.length > 0 && (
-                <div ref={lastItemRef} className="h-[50dvh] w-full flex items-center justify-center bg-black snap-start">
-                    {isGenerating ? (
-                        <div className="flex flex-col items-center">
-                            <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-                            <span className="text-zinc-500">Curating more content...</span>
-                        </div>
-                    ) : (
-                        <div className="text-zinc-600">Scroll down for more</div>
-                    )}
+                return (
+                    <div
+                        key={`${item.id}-${index}`}
+                        ref={isTriggerElement ? lastItemRef : null}
+                        className="h-[100dvh] w-full snap-start relative flex-shrink-0 bg-black"
+                    >
+                        {item.type === "post" && <PostCard item={item} userId={userId} />}
+                        {item.type === "summary" && <SummaryCard item={item} userId={userId} />}
+                        {item.type === "visual_concept" && <VisualCard item={item} userId={userId} />}
+                        {item.type === "quiz" && <QuizCard item={item} userId={userId} />}
+                    </div>
+                );
+            })}
+
+            {/* Optional Loading Indicator At the Very End */}
+            {isGenerating && (
+                <div className="h-[20dvh] w-full flex items-center justify-center bg-black snap-start">
+                    <div className="flex flex-col items-center">
+                        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
+                        <span className="text-zinc-500">Curating more content...</span>
+                    </div>
                 </div>
             )}
         </div>
