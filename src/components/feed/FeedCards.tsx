@@ -204,7 +204,7 @@ export const PostCard = ({ item, userId }: Props) => {
         : null;
 
     return (
-        <div className="w-full h-full flex items-end pt-28 pb-24 px-6 relative bg-zinc-950">
+        <div className="w-full h-full flex items-end pt-28 pb-24 pr-6 pl-24 md:pl-32 relative bg-zinc-950">
             {imageUrl && (
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-70"
@@ -237,7 +237,7 @@ export const SummaryCard = ({ item, userId }: Props) => {
         : null;
 
     return (
-        <div className="w-full h-full flex flex-col items-center justify-center pt-28 pb-24 px-6 bg-zinc-950 relative" onClick={() => setFlipped(!flipped)}>
+        <div className="w-full h-full flex flex-col items-center justify-center pt-28 pb-24 pr-6 pl-24 md:pl-32 bg-zinc-950 relative" onClick={() => setFlipped(!flipped)}>
             <div className="perspective-1000 w-full max-w-sm h-[60vh]">
                 <motion.div
                     animate={{ rotateY: flipped ? 180 : 0 }}
@@ -302,7 +302,7 @@ export const VisualCard = ({ item, userId }: Props) => {
         : null;
 
     return (
-        <div className="w-full h-full flex flex-col justify-end pt-28 pb-24 px-6 bg-zinc-950 relative overflow-hidden">
+        <div className="w-full h-full flex flex-col justify-end pt-28 pb-24 pr-6 pl-24 md:pl-32 bg-zinc-950 relative overflow-hidden">
             {imageUrl && (
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-70"
@@ -349,7 +349,7 @@ export const QuizCard = ({ item, userId }: Props) => {
     };
 
     return (
-        <div className="w-full h-full flex flex-col justify-center px-6 bg-zinc-950 relative overflow-hidden">
+        <div className="w-full h-full flex flex-col justify-center pr-6 pl-24 md:pl-32 bg-zinc-950 relative overflow-hidden">
             {imageUrl && (
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30"
