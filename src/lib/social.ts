@@ -10,7 +10,9 @@ import {
     serverTimestamp,
     arrayUnion,
     deleteDoc,
-    getDoc
+    getDoc,
+    orderBy,
+    limit
 } from "firebase/firestore";
 
 export interface FriendRequest {
@@ -45,6 +47,28 @@ export async function sendFriendRequest(fromUid: string, fromName: string, toUid
     try {
         const fromUserDoc = await getDoc(doc(db, "users", fromUid));
         let subjectsMsg = "";
+        let topSubjects: string[] = [];
+
+        // Get interaction history to find most studied subjects
+        const interactionsRef = collection(db, `users/${fromUid}/interactions`);
+        const interactionsQuery = query(interactionsRef, orderBy("timestamp", "desc"), limit(50));
+        const interactionsSnap = await getDocs(interactionsQuery);
+
+        if (!interactionsSnap.empty) {
+            const subjectCounts: Record<string, number> = {};
+            interactionsSnap.docs.forEach(d => {
+                const data = d.data();
+                if (data.subject) {
+                    subjectCounts[data.subject] = (subjectCounts[data.subject] || 0) + 1;
+                }
+            });
+
+            topSubjects = Object.entries(subjectCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([name]) => name);
+        }
+
         if (fromUserDoc.exists()) {
             const data = fromUserDoc.data();
             const subjects = (data.subjects || []).map((s: any) => typeof s === 'string' ? s : s.name);
@@ -62,6 +86,7 @@ export async function sendFriendRequest(fromUid: string, fromName: string, toUid
             message: `${fromName}${subjectsMsg} sent you a comrade request.`,
             link: `/profile?id=${fromUid}`,
             isRead: false,
+            topSubjects, // Added top subjects metadata
             createdAt: serverTimestamp()
         });
     } catch (err) {

@@ -19,6 +19,7 @@ interface Notification {
     isRead: boolean;
     createdAt: any;
     requestId?: string;
+    topSubjects?: string[];
 }
 
 export default function NotificationsPage() {
@@ -150,10 +151,15 @@ export default function NotificationsPage() {
                                                         {n.message.split('replied to your post')[1]}
                                                     </span>
                                                 )}
-                                                {n.type === 'comrade_request' && n.message.includes(' studying ') && (
-                                                    <span className="text-zinc-500 italic">
-                                                        {n.message.split(n.fromUserName)[1]?.replace(' sent you a comrade request.', '')}
-                                                    </span>
+                                                {n.type === 'comrade_request' && n.topSubjects && n.topSubjects.length > 0 && (
+                                                    <div className="mt-2 mb-1 flex flex-wrap gap-1.5">
+                                                        <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block w-full mb-1">Top Interests</span>
+                                                        {n.topSubjects.map(sub => (
+                                                            <span key={sub} className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-bold text-blue-400 capitalize">
+                                                                {sub}
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 )}
                                             </div>
                                             <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">
