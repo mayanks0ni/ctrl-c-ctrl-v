@@ -40,6 +40,7 @@ function ProfileContent() {
 
     const [timetable, setTimetable] = useState<any>(null);
     const [schedule, setSchedule] = useState<{ subject: string; day: string; startTime: string; endTime: string }[]>([]);
+    const [activeDay, setActiveDay] = useState<string>("");
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -85,7 +86,22 @@ function ProfileContent() {
                 // Fetch expanded schedule
                 const scheduleSnap = await getDoc(doc(db, `users/${uidToFetch}/metadata`, "schedule"));
                 if (scheduleSnap.exists()) {
-                    setSchedule(scheduleSnap.data().items || []);
+                    const scheduleData = scheduleSnap.data().items || [];
+                    setSchedule(scheduleData);
+
+                    // Set default active day to current day if scheduled, else first available
+                    if (scheduleData.length > 0) {
+                        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                        const currentDay = days[new Date().getDay()];
+                        const availableDays = Array.from(new Set(scheduleData.map((s: any) => s.day)));
+                        if (availableDays.includes(currentDay)) {
+                            setActiveDay(currentDay);
+                        } else {
+                            const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                            const firstDay = availableDays.sort((a: any, b: any) => dayOrder.indexOf(a) - dayOrder.indexOf(b))[0] as string;
+                            setActiveDay(firstDay);
+                        }
+                    }
                 }
 
                 // Only fetch private data if own profile
@@ -380,29 +396,64 @@ function ProfileContent() {
                             </div>
                         )}
 
-                        {/* Parsed Daily Breakdown List */}
-                        {schedule.length > 0 && (
+                        {/* Parsed Daily Breakdown Switcher & List */}
+                        {sortedDays.length > 0 && (
                             <div className="mt-4 space-y-4">
-                                {sortedDays.map(day => (
-                                    <div key={day} className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl p-5">
-                                        <h4 className="text-sm font-bold text-zinc-300 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2">{day}</h4>
+                                {/* Day Switcher */}
+                                <div className="flex flex-wrap gap-2 mb-4 p-1 bg-zinc-900/40 rounded-2xl border border-zinc-800/60 overflow-x-auto no-scrollbar">
+                                    {sortedDays.map((day) => (
+                                        <button
+                                            key={day}
+                                            onClick={() => setActiveDay(day)}
+                                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap ${activeDay === day
+                                                ? "bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+                                                : "bg-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                                                }`}
+                                        >
+                                            {day}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Active Day Content */}
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={activeDay}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl p-5"
+                                    >
+                                        <div className="flex justify-between items-center mb-3 border-b border-zinc-800 pb-2">
+                                            <h4 className="text-sm font-bold text-zinc-300 uppercase tracking-widest">{activeDay}</h4>
+                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/50">
+                                                {groupedSchedule[activeDay]?.length || 0} Sessions
+                                            </span>
+                                        </div>
                                         <div className="space-y-2">
-                                            {groupedSchedule[day]
-                                                .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                            {groupedSchedule[activeDay]
+                                                ?.sort((a, b) => a.startTime.localeCompare(b.startTime))
                                                 .map((item, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 hover:bg-zinc-800/50 transition">
+                                                    <motion.div
+                                                        key={i}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        transition={{ delay: i * 0.05 }}
+                                                        className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950/50 border border-white/5 hover:border-purple-500/30 hover:bg-zinc-800/30 transition-all group"
+                                                    >
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
+                                                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)] group-hover:scale-125 transition-transform" />
                                                             <p className="font-bold text-white text-sm">{item.subject}</p>
                                                         </div>
-                                                        <p className="text-xs font-medium text-zinc-500 font-mono bg-zinc-900 px-2 py-1 rounded-lg">
+                                                        <p className="text-xs font-medium text-zinc-500 font-mono bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-800 group-hover:text-zinc-300 transition-colors">
                                                             {item.startTime} - {item.endTime}
                                                         </p>
-                                                    </div>
+                                                    </motion.div>
                                                 ))}
                                         </div>
-                                    </div>
-                                ))}
+                                    </motion.div>
+                                </AnimatePresence>
                             </div>
                         )}
                     </div>
