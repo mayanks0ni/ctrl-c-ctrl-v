@@ -37,9 +37,9 @@ export default function EduWrapped({ userId, displayName, xp, subjects, comrades
 
             const dataUrl = await toPng(downloadRef.current, {
                 pixelRatio: 4,
-                backgroundColor: '#09090b',
+                backgroundColor: '#0a0a0f',
                 width: 1080,
-                height: 1920,
+                height: 1080,
             });
 
             const link = document.createElement('a');
@@ -277,118 +277,130 @@ export default function EduWrapped({ userId, displayName, xp, subjects, comrades
                     ref={downloadRef}
                     style={{
                         width: 1080,
-                        height: 1920,
-                        background: 'linear-gradient(160deg, #09090b 0%, #1a1a2e 40%, #16213e 70%, #0f3460 100%)',
+                        height: 1080,
+                        background: 'linear-gradient(145deg, #0a0a0f 0%, #111127 50%, #0d1b2a 100%)',
                         fontFamily: 'system-ui, -apple-system, sans-serif',
                         color: 'white',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        padding: 80,
+                        padding: '48px 56px',
                         position: 'relative',
                         overflow: 'hidden',
                     }}
                 >
-                    {/* Background glow effects */}
-                    <div style={{ position: 'absolute', top: -200, right: -200, width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)' }} />
-                    <div style={{ position: 'absolute', bottom: -100, left: -100, width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.12) 0%, transparent 70%)' }} />
+                    {/* Subtle background accents */}
+                    <div style={{ position: 'absolute', top: -120, right: -120, width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)' }} />
+                    <div style={{ position: 'absolute', bottom: -80, left: -80, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.06) 0%, transparent 70%)' }} />
 
-                    {/* Header */}
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                            <div style={{ fontSize: 48 }}>✨</div>
-                            <div>
-                                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 6, textTransform: 'uppercase' as const, color: '#71717a' }}>
-                                    EDU WRAPPED
-                                </div>
-                                <div style={{ fontSize: 28, fontWeight: 800, color: '#a1a1aa' }}>
-                                    {currentMonth} 2026
-                                </div>
+                    {/* Header Row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+                        <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 5, textTransform: 'uppercase' as const, color: '#6366f1', marginBottom: 4 }}>
+                                ◆ EDU WRAPPED
+                            </div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#71717a' }}>
+                                {currentMonth} 2026
                             </div>
                         </div>
-                        <div style={{ width: '100%', height: 1, background: 'linear-gradient(90deg, rgba(59,130,246,0.5), rgba(168,85,247,0.5), transparent)', marginTop: 24 }} />
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#3f3f46', fontFamily: 'monospace', textAlign: 'right' as const }}>
+                            V2
+                        </div>
                     </div>
 
-                    {/* Main Content */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 48 }}>
-                        {/* Username */}
+                    {/* Divider */}
+                    <div style={{ width: '100%', height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,0.4), rgba(168,85,247,0.3), transparent)', marginBottom: 28 }} />
+
+                    {/* Username + XP Row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28 }}>
                         <div>
-                            <div style={{ fontSize: 22, fontWeight: 700, color: '#71717a', textTransform: 'uppercase' as const, letterSpacing: 4, marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#52525b', textTransform: 'uppercase' as const, letterSpacing: 4, marginBottom: 6 }}>
                                 Learner
                             </div>
-                            <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 1.1 }}>
+                            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1 }}>
                                 {displayName}
                             </div>
                         </div>
-
-                        {/* XP */}
-                        <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 32, padding: '36px 44px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase' as const, letterSpacing: 4, marginBottom: 8 }}>
-                                Total XP Earned
+                        <div style={{ textAlign: 'right' as const }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase' as const, letterSpacing: 3, marginBottom: 4 }}>
+                                Total XP
                             </div>
-                            <div style={{ fontSize: 72, fontWeight: 900, background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                {xp.toLocaleString()} XP
+                            <div style={{ fontSize: 40, fontWeight: 900, background: 'linear-gradient(135deg, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>
+                                {xp.toLocaleString()}
                             </div>
                         </div>
+                    </div>
 
-                        {/* Top Subjects */}
-                        <div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#71717a', textTransform: 'uppercase' as const, letterSpacing: 4, marginBottom: 24 }}>
-                                Most Studied
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                {insights.interestList.slice(0, 4).map((topic, i) => (
-                                    <div
-                                        key={topic}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 20,
-                                            background: 'rgba(255,255,255,0.04)',
-                                            borderRadius: 20,
-                                            padding: '20px 28px',
-                                            border: '1px solid rgba(255,255,255,0.06)',
-                                        }}
-                                    >
-                                        <span style={{ fontWeight: 900, fontSize: 28, color: i === 0 ? '#60a5fa' : i === 1 ? '#a78bfa' : i === 2 ? '#34d399' : '#fbbf24', minWidth: 44 }}>
-                                            #{i + 1}
-                                        </span>
-                                        <span style={{ fontWeight: 700, fontSize: 28, textTransform: 'capitalize' as const }}>
-                                            {topic}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
+                    {/* Subjects */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#52525b', textTransform: 'uppercase' as const, letterSpacing: 4, marginBottom: 14 }}>
+                            ▸ Most Studied
                         </div>
-
-                        {/* Stats Row */}
-                        <div style={{ display: 'flex', gap: 24 }}>
-                            <div style={{ flex: 1, background: 'rgba(168,85,247,0.1)', borderRadius: 24, padding: '28px 32px', border: '1px solid rgba(168,85,247,0.15)' }}>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa', letterSpacing: 3, textTransform: 'uppercase' as const, marginBottom: 6 }}>
-                                    Personality
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                            {insights.interestList.slice(0, 4).map((topic, i) => (
+                                <div
+                                    key={topic}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 16,
+                                        background: i === 0 ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
+                                        borderRadius: 14,
+                                        padding: '14px 20px',
+                                        border: i === 0 ? '1px solid rgba(99,102,241,0.15)' : '1px solid rgba(255,255,255,0.04)',
+                                    }}
+                                >
+                                    <span style={{
+                                        fontWeight: 800,
+                                        fontSize: 18,
+                                        color: i === 0 ? '#818cf8' : i === 1 ? '#a78bfa' : i === 2 ? '#67e8f9' : '#fbbf24',
+                                        minWidth: 32,
+                                        fontFamily: 'monospace',
+                                    }}>
+                                        0{i + 1}
+                                    </span>
+                                    <span style={{ fontWeight: 700, fontSize: 22, textTransform: 'capitalize' as const, letterSpacing: 0.5 }}>
+                                        {topic}
+                                    </span>
                                 </div>
-                                <div style={{ fontSize: 24, fontWeight: 800 }}>
+                            ))}
+                        </div>
+
+                        {/* Bottom Stats */}
+                        <div style={{ display: 'flex', gap: 14, marginTop: 'auto' }}>
+                            <div style={{ flex: 1, background: 'rgba(168,85,247,0.07)', borderRadius: 16, padding: '18px 22px', border: '1px solid rgba(168,85,247,0.1)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', letterSpacing: 3, textTransform: 'uppercase' as const, marginBottom: 4 }}>
+                                    Identity
+                                </div>
+                                <div style={{ fontSize: 18, fontWeight: 800 }}>
                                     {insights.personality}
                                 </div>
                             </div>
-                            <div style={{ flex: 1, background: 'rgba(59,130,246,0.1)', borderRadius: 24, padding: '28px 32px', border: '1px solid rgba(59,130,246,0.15)' }}>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa', letterSpacing: 3, textTransform: 'uppercase' as const, marginBottom: 6 }}>
+                            <div style={{ flex: 1, background: 'rgba(99,102,241,0.07)', borderRadius: 16, padding: '18px 22px', border: '1px solid rgba(99,102,241,0.1)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', letterSpacing: 3, textTransform: 'uppercase' as const, marginBottom: 4 }}>
                                     Rank
                                 </div>
-                                <div style={{ fontSize: 24, fontWeight: 800 }}>
+                                <div style={{ fontSize: 18, fontWeight: 800 }}>
                                     Top {100 - insights.edgePercent}%
+                                </div>
+                            </div>
+                            <div style={{ flex: 1, background: 'rgba(52,211,153,0.07)', borderRadius: 16, padding: '18px 22px', border: '1px solid rgba(52,211,153,0.1)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#34d399', letterSpacing: 3, textTransform: 'uppercase' as const, marginBottom: 4 }}>
+                                    Consumed
+                                </div>
+                                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                                    {insights.totalInteractions} Blips
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Footer */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 32 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#52525b', letterSpacing: 4, textTransform: 'uppercase' as const }}>
-                            ✨ Powered by GenAI
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 20, marginTop: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#3f3f46', letterSpacing: 4, textTransform: 'uppercase' as const }}>
+                            ─── Powered by GenAI
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#3f3f46', fontFamily: 'monospace' }}>
-                            STABLE_WRAP_V2
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#27272a', fontFamily: 'monospace' }}>
+                            STABLE · WRAP
                         </div>
                     </div>
                 </div>
