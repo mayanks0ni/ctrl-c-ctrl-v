@@ -1,36 +1,208 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ctrl-C Ctrl-V
+
+### Turning Doomscrolling into Deep Learning
+
+Ctrl-C Ctrl-V is a micro-learning web application that transforms
+endless scrolling into structured, engaging, and trackable learning
+sessions. Instead of passive content consumption, users receive
+AI-generated educational feeds, quizzes, engagement tracking, and
+session summaries.
+
+Built with **Next.js**, **TypeScript**, and modern AI integrations, the
+platform blends social media interaction patterns with productive study
+mechanics.
+
+------------------------------------------------------------------------
+
+## Core Idea
+
+Take the addictive mechanics of short-form scrolling and repurpose them
+for:
+
+-   Micro-lessons\
+-   Instant quizzes\
+-   Focus tracking\
+-   Engagement analytics\
+-   Personalized learning feeds
+
+It feels like scrolling.\
+It behaves like studying.
+
+------------------------------------------------------------------------
+
+## Tech Stack
+
+-   **Frontend:** Next.js (App Router), TypeScript\
+-   **Styling:** Tailwind CSS\
+-   **Authentication & Backend:** Firebase\
+-   **AI Integration:** Gemini API\
+-   **Vector Search:** Pinecone\
+-   **Linting:** ESLint
+
+------------------------------------------------------------------------
+
+## Project Structure
+
+    src/
+     ├── app/                 → Next.js app router pages & API routes
+     │   ├── api/             → Backend endpoints
+     │   ├── feed/            → Micro-learning feed UI
+     │   ├── quizzes/         → Quiz interface
+     │   ├── upload/          → Document & timetable uploads
+     │   ├── profile/         → User analytics & EduWrapped
+     │   └── forum/           → Community interaction
+     │
+     ├── components/          → Reusable UI components
+     │   ├── feed/
+     │   ├── navigation/
+     │   ├── profile/
+     │   └── timetable/
+     │
+     ├── contexts/            → Auth context
+     ├── hooks/               → Custom hooks (engagement, auth guards)
+     └── lib/                 → AI clients, Firebase config, Pinecone setup
+
+------------------------------------------------------------------------
+
+## Features
+
+### AI-Generated Learning Feed
+
+-   Personalized micro-lessons
+-   Infinite scroll experience
+-   Smart content generation via Gemini
+-   Vector-backed relevance using Pinecone
+
+### Embedded Quizzes
+
+-   Short quizzes after learning segments
+-   Engagement-based tracking
+-   Performance-aware progression
+
+### Engagement Tracking
+
+-   Scroll tracking
+-   Interaction analytics
+-   Session monitoring
+-   Focus interruption detection
+
+### Session Summary
+
+-   AI-generated study recap
+-   Learning highlights
+-   Performance breakdown
+
+### EduWrapped
+
+-   A "Spotify Wrapped" for learning
+-   Visual study insights
+-   Engagement statistics
+-   Focus trends
+
+### Timetable Analysis
+
+-   Upload timetable
+-   AI-driven schedule analysis
+-   Focus optimization recommendations
+
+------------------------------------------------------------------------
+
+## API Routes
+
+Located under:
+
+    src/app/api/
+
+Includes:
+
+-   `generate-feed` → Creates personalized feed content\
+-   `process-document` → Handles uploaded study materials\
+-   `quiz-engagement` → Tracks quiz interactions\
+-   `track-engagement` → Logs user activity\
+-   `summarize-session` → Generates AI study recap\
+-   `analyze-timetable` → Timetable analysis endpoint
+
+------------------------------------------------------------------------
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repository
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+``` bash
+git clone <repo-url>
+cd ctrl-c-ctrl-v
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+``` bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Set up environment variables
 
-## Learn More
+Create a `.env.local` file and configure:
 
-To learn more about Next.js, take a look at the following resources:
+    NEXT_PUBLIC_FIREBASE_API_KEY=
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+    GEMINI_API_KEY=
+    PINECONE_API_KEY=
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Run the development server
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+``` bash
+npm run dev
+```
 
-## Deploy on Vercel
+Visit:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    http://localhost:3000
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+------------------------------------------------------------------------
+
+## How It Works (High-Level)
+
+1.  User logs in (Firebase Auth)
+2.  AI generates personalized micro-lessons
+3.  Feed renders content in scrollable format
+4.  Engagement is tracked continuously
+5.  Quizzes reinforce learning
+6.  Session summary and analytics are generated
+
+------------------------------------------------------------------------
+
+## Intended Impact
+
+This platform is designed to:
+
+-   Reduce passive scrolling
+-   Increase retention through micro-learning
+-   Provide measurable productivity metrics
+-   Encourage consistent study habits
+
+------------------------------------------------------------------------
+
+## Future Improvements
+
+-   Adaptive difficulty engine\
+-   Collaborative study rooms\
+-   Streak mechanics & gamification\
+-   Offline micro-lessons\
+-   Mobile-first performance optimization
+
+------------------------------------------------------------------------
+
+## Contributors
+
+-   Mayank Soni\
+-   Anmol Mishra\
+-   Sanyam Rana\
+-   Mehul Kale
+
+------------------------------------------------------------------------
+
+## License
+
+This project is currently intended for academic / experimental use.\
+Add a license file if planning public distribution.
