@@ -1,4 +1,4 @@
-# Ctrl-C Ctrl-V
+# Cascade
 
 ### Turning Doomscrolling into Deep Learning
 
@@ -185,24 +185,24 @@ This platform is designed to:
 
 ## Future Improvements
 
--   Adaptive difficulty engine\
--   Collaborative study rooms\
--   Streak mechanics & gamification\
--   Offline micro-lessons\
+-   Adaptive difficulty engine
+-   Collaborative study rooms
+-   Streak mechanics & gamification
+-   Offline micro-lessons
 -   Mobile-first performance optimization
 
 ------------------------------------------------------------------------
 
 ## Contributors
 
--   Mayank Soni\
--   Anmol Mishra\
--   Sanyam Rana\
--   Mehul Kale
+-   Mayank Soni
+-   Pamarthi Sunanda
+-   Vidhi Sharma
+-   alankrita Singh
 
 ------------------------------------------------------------------------
 
 ## License
 
-This project is currently intended for academic / experimental use.\
+This project is currently intended for academic / experimental use.
 Add a license file if planning public distribution.
